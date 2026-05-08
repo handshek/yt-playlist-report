@@ -91,9 +91,82 @@ export interface PlaylistDetails {
   thumbnails: Thumbnails;
 }
 
+type PlaylistReportData = {
+  videos: VideoItem[];
+  duration: string;
+  avgDuration: string;
+};
+
+type CachedPlaylistReport = {
+  schemaVersion: 1;
+  savedAt: number;
+  data: PlaylistReportData;
+};
+
 // Constants
 const YOUTUBE_API_BASE_URL = "https://www.googleapis.com/youtube/v3";
 const YOUTUBE_API_KEY = import.meta.env.VITE_YT_API_KEY;
+const PLAYLIST_REPORT_CACHE_SCHEMA_VERSION = 1;
+const PLAYLIST_REPORT_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+const PLAYLIST_REPORT_CACHE_PREFIX = "ytpr:playlist-report:";
+
+const getPlaylistReportCacheKey = (playlistId: string) =>
+  `${PLAYLIST_REPORT_CACHE_PREFIX}${playlistId}`;
+
+const readCachedPlaylistReport = (
+  playlistId: string
+): PlaylistReportData | null => {
+  try {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const cachedValue = window.localStorage.getItem(
+      getPlaylistReportCacheKey(playlistId)
+    );
+
+    if (!cachedValue) {
+      return null;
+    }
+
+    const cachedReport = JSON.parse(cachedValue) as CachedPlaylistReport;
+
+    if (
+      cachedReport.schemaVersion !== PLAYLIST_REPORT_CACHE_SCHEMA_VERSION ||
+      Date.now() - cachedReport.savedAt >= PLAYLIST_REPORT_CACHE_TTL_MS
+    ) {
+      return null;
+    }
+
+    return cachedReport.data;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedPlaylistReport = (
+  playlistId: string,
+  data: PlaylistReportData
+) => {
+  try {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const cachedReport: CachedPlaylistReport = {
+      schemaVersion: PLAYLIST_REPORT_CACHE_SCHEMA_VERSION,
+      savedAt: Date.now(),
+      data,
+    };
+
+    window.localStorage.setItem(
+      getPlaylistReportCacheKey(playlistId),
+      JSON.stringify(cachedReport)
+    );
+  } catch {
+    // Cache failures should never block report generation.
+  }
+};
 
 // Helper functions
 export const parseDuration = (duration: string): number => {
@@ -176,15 +249,26 @@ const fetchVideoDetails = async (
 
 const calculatePlaylistDetails = async (
   playlistId: string
-): Promise<{ videos: VideoItem[]; duration: string; avgDuration: string }> => {
+): Promise<PlaylistReportData> => {
+  const cachedReport = readCachedPlaylistReport(playlistId);
+
+  if (cachedReport) {
+    return cachedReport;
+  }
+
   const videoIds = await fetchPlaylistVideoIds(playlistId);
   const { videos, totalDuration } = await fetchVideoDetails(videoIds);
   const avgDuration = Math.round(totalDuration / videos.length);
-  return {
+
+  const playlistReport = {
     videos,
     duration: formatDuration(totalDuration),
     avgDuration: formatDuration(avgDuration),
   };
+
+  writeCachedPlaylistReport(playlistId, playlistReport);
+
+  return playlistReport;
 };
 
 export const createPlaylistDetailsQuery = (id: string) => ({
