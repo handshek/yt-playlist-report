@@ -32,16 +32,32 @@ Generate comprehensive reports for YouTube playlists. Get insights on total dura
 
 1. Clone the repository
 2. Install dependencies: `pnpm install`
-3. Create a `.env.local` file in the root directory and add your YouTube API key:
+3. Copy `.env.example` to `.env.local` and add your YouTube API key:
    ```
    VITE_YT_API_KEY=your_api_key_here
    ```
 4. Run the development server: `npm run dev`
 5. Open `http://localhost:5001` in your browser
 
+## 📈 Self-hosted analytics with Counterscale
+
+The app supports a patched, password-protected [Counterscale v3.4.1](https://github.com/benvinegar/counterscale/tree/v3.4.1) Worker on Cloudflare Free. Analytics remain disabled unless both public variables are present.
+
+1. Deploy the pinned Worker using the [Cloudflare runbook](analytics/counterscale/README.md).
+2. Set these variables in Netlify:
+   ```
+   VITE_COUNTERSCALE_REPORTER_URL=https://ytpr-data.<account>.workers.dev/collect
+   VITE_COUNTERSCALE_SITE_ID=ytpr-production
+   ```
+3. Rebuild and deploy the app.
+
+Normal navigation is recorded as a pageview. A playlist path such as `/playlist/PLabc123` is recorded only after its complete report loads successfully, once per completed report view. Analytics failures never block report generation.
+
+The versioned [Counterscale patch](analytics/counterscale/counterscale-v3.4.1.patch) adds the playlist leaderboard, exact-origin ingestion controls, bot suppression, and removes the R2 binding and archive cron.
+
 ## 🛣 Roadmap
 
-- [ ] Add tests
+- [x] Add tests
 
 ## 🌈 Inspiration
 

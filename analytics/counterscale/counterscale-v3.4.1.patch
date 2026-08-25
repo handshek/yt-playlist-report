@@ -1,0 +1,740 @@
+diff --git a/packages/server/app/analytics/__tests__/collect.test.ts b/packages/server/app/analytics/__tests__/collect.test.ts
+index c70f0f6..93f78a8 100644
+--- a/packages/server/app/analytics/__tests__/collect.test.ts
++++ b/packages/server/app/analytics/__tests__/collect.test.ts
+@@ -426,4 +426,22 @@ describe("collectRequestHandler", () => {
+         expect(blobs[13]).toBe(""); // utm_term (empty)
+         expect(blobs[14]).toBe(""); // utm_content (empty)
+     });
++
++    test("returns a normal response without writing obvious bot traffic", () => {
++        const env = {
++            WEB_COUNTER_AE: {
++                writeDataPoint: vi.fn(),
++            } as AnalyticsEngineDataset,
++        } as Env;
++
++        const request = generateRequestParams({
++            "user-agent": "Googlebot/2.1 (+http://www.google.com/bot.html)",
++        });
++
++        const response = collectRequestHandler(request as any, env);
++
++        expect(response.status).toBe(200);
++        expect(response.headers.get("Content-Type")).toBe("image/gif");
++        expect(env.WEB_COUNTER_AE.writeDataPoint).not.toHaveBeenCalled();
++    });
+ });
+diff --git a/packages/server/app/analytics/__tests__/query.test.ts b/packages/server/app/analytics/__tests__/query.test.ts
+index c21d8d6..3a48774 100644
+--- a/packages/server/app/analytics/__tests__/query.test.ts
++++ b/packages/server/app/analytics/__tests__/query.test.ts
+@@ -294,6 +294,41 @@ describe("AnalyticsEngineAPI", () => {
+         });
+     });
+ 
++    describe("getPlaylistMeasurements", () => {
++        test("ranks exact playlist paths by sampled pageview count", async () => {
++            fetch.mockResolvedValue(
++                createFetchResponse({
++                    data: [
++                        { path: "/playlist/PLpopular", measurements: "17" },
++                        { path: "/playlist/PLnext", measurements: "9" },
++                    ],
++                }),
++            );
++
++            const result = await api.getPlaylistMeasurements(
++                "ytpr-production",
++                "30d",
++                "Asia/Kolkata",
++                { country: "IN" },
++                1,
++            );
++
++            expect(result).toEqual([
++                { playlistId: "PLpopular", measurements: 17 },
++                { playlistId: "PLnext", measurements: 9 },
++            ]);
++
++            const query = fetch.mock.calls[0][1].body as string;
++            expect(query).toContain("SUM(_sample_interval) as measurements");
++            expect(query).toContain("blob3 LIKE '/playlist/%'");
++            expect(query).toContain("blob8 = 'ytpr-production'");
++            expect(query).toContain("blob4 = 'IN'");
++            expect(query).toContain("ORDER BY measurements DESC");
++            expect(query).toContain("LIMIT 10");
++            expect(query).not.toContain("double1 = 1");
++        });
++    });
++
+     describe("getVisitorCountByColumn", () => {
+         test("it should map logical columns to schema columns and return an array of [column, count] tuples", async () => {
+             fetch.mockResolvedValue(
+diff --git a/packages/server/app/analytics/collect.ts b/packages/server/app/analytics/collect.ts
+index 193b9ce..16a8a18 100644
+--- a/packages/server/app/analytics/collect.ts
++++ b/packages/server/app/analytics/collect.ts
+@@ -1,6 +1,8 @@
+ import type { AnalyticsEngineDataset } from "@cloudflare/workers-types";
+ import { IDevice, UAParser } from "ua-parser-js";
+ import { maskBrowserVersion } from "~/lib/utils";
++import { isbot } from "isbot";
++import { analyticsCorsHeaders } from "~/lib/analytics-origin";
+ 
+ // Cookieless visitor/session tracking
+ // Uses the approach described here: https://notes.normally.com/cookieless-unique-visitor-counts/
+@@ -208,7 +210,9 @@ export function collectRequestHandler(
+         data.country = country;
+     }
+ 
+-    writeDataPoint(env.WEB_COUNTER_AE, data);
++    if (!isbot(userAgent)) {
++        writeDataPoint(env.WEB_COUNTER_AE, data);
++    }
+ 
+     // encode 1x1 transparent gif
+     const gif = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+@@ -221,7 +225,7 @@ export function collectRequestHandler(
+     }
+ 
+     const headers: HeadersInit = {
+-        "Access-Control-Allow-Origin": "*",
++        ...analyticsCorsHeaders,
+         "Content-Type": "image/gif",
+         Expires: "Mon, 01 Jan 1990 00:00:00 GMT",
+         "Cache-Control": "no-cache",
+diff --git a/packages/server/app/analytics/query.ts b/packages/server/app/analytics/query.ts
+index 5810f7e..1a91b13 100644
+--- a/packages/server/app/analytics/query.ts
++++ b/packages/server/app/analytics/query.ts
+@@ -24,6 +24,10 @@ interface AnalyticsCountResult {
+ }
+ 
+ export type ViewsGroupedByInterval = [string, AnalyticsCountResult][];
++export type PlaylistMeasurement = {
++    playlistId: string;
++    measurements: number;
++};
+ /** Given an AnalyticsCountResult object, and an object representing a row returned from
+  *  CF Analytics Engine w/ counts grouped by isVisitor, accumulate view,
+  *  visit, and visitor counts.
+@@ -397,6 +401,54 @@ export class AnalyticsEngineAPI {
+         return returnPromise;
+     }
+ 
++    async getPlaylistMeasurements(
++        siteId: string,
++        interval: string,
++        tz?: string,
++        filters: SearchFilters = {},
++        page: number = 1,
++        limit: number = 10,
++    ): Promise<PlaylistMeasurement[]> {
++        const { startIntervalSql, endIntervalSql } = intervalToSql(
++            interval,
++            tz,
++        );
++        const filterStr = filtersToSql(filters);
++        const pathColumn = ColumnMappings.path;
++
++        const query = `
++            SELECT ${pathColumn} as path,
++                SUM(_sample_interval) as measurements
++            FROM metricsDataset
++            WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
++                AND ${ColumnMappings.siteId} = '${siteId}'
++                AND ${pathColumn} LIKE '/playlist/%'
++                ${filterStr}
++            GROUP BY ${pathColumn}
++            ORDER BY measurements DESC
++            LIMIT ${limit * page}`;
++
++        const response = await this.query(query);
++        if (!response.ok) {
++            throw new Error(response.statusText);
++        }
++
++        const responseData =
++            (await response.json()) as AnalyticsQueryResult<{
++                path: string;
++                measurements: number;
++            }>;
++        const pageData = responseData.data.slice(
++            limit * (page - 1),
++            limit * page,
++        );
++
++        return pageData.map((row) => ({
++            playlistId: row.path.slice("/playlist/".length),
++            measurements: Number(row.measurements),
++        }));
++    }
++
+     async getVisitorCountByColumn<T extends keyof typeof ColumnMappings>(
+         siteId: string,
+         column: T,
+diff --git a/packages/server/app/lib/analytics-origin.ts b/packages/server/app/lib/analytics-origin.ts
+new file mode 100644
+index 0000000..cad6f17
+--- /dev/null
++++ b/packages/server/app/lib/analytics-origin.ts
+@@ -0,0 +1,14 @@
++export const ANALYTICS_ORIGIN = "https://ytpr.netlify.app";
++
++export function rejectInvalidAnalyticsOrigin(request: Request) {
++    if (request.headers.get("Origin") === ANALYTICS_ORIGIN) {
++        return null;
++    }
++
++    return new Response("Forbidden", { status: 403 });
++}
++
++export const analyticsCorsHeaders = {
++    "Access-Control-Allow-Origin": ANALYTICS_ORIGIN,
++    Vary: "Origin",
++} as const;
+diff --git a/packages/server/app/routes/__tests__/cache.test.tsx b/packages/server/app/routes/__tests__/cache.test.tsx
+index 2d14986..c67aa35 100644
+--- a/packages/server/app/routes/__tests__/cache.test.tsx
++++ b/packages/server/app/routes/__tests__/cache.test.tsx
+@@ -4,6 +4,12 @@ import "vitest-dom/extend-expect";
+ 
+ import { CacheLoaderBody, loader } from "../cache";
+ 
++function analyticsRequest(url: string, init: RequestInit = {}) {
++    const headers = new Headers(init.headers);
++    headers.set("Origin", "https://ytpr.netlify.app");
++    return new Request(url, { ...init, headers });
++}
++
+ describe("Cache route", () => {
+     beforeEach(() => {
+         // Reset the date mock before each test
+@@ -15,9 +21,28 @@ describe("Cache route", () => {
+     });
+ 
+     describe("loader", () => {
++        test("allows only the production application origin", async () => {
++            const allowed = new Request("http://localhost:3000/cache", {
++                headers: { Origin: "https://ytpr.netlify.app" },
++            });
++            const rejected = new Request("http://localhost:3000/cache", {
++                headers: { Origin: "https://example.com" },
++            });
++            const missing = new Request("http://localhost:3000/cache");
++
++            const allowedResponse = await loader({ request: allowed } as any);
++            expect(allowedResponse.status).toBe(200);
++            expect(
++                allowedResponse.headers.get("Access-Control-Allow-Origin"),
++            ).toBe("https://ytpr.netlify.app");
++            expect(allowedResponse.headers.get("Vary")).toBe("Origin");
++            expect((await loader({ request: rejected } as any)).status).toBe(403);
++            expect((await loader({ request: missing } as any)).status).toBe(403);
++        });
++
+         test("returns new visit for request with no If-Modified-Since header", async () => {
+             // Create a request with no If-Modified-Since
+-            const request = new Request("http://localhost:3000/cache");
++            const request = analyticsRequest("http://localhost:3000/cache");
+ 
+             // Call the loader
+             const response = await loader({ request } as any);
+@@ -44,7 +69,7 @@ describe("Cache route", () => {
+             const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+             const ifModifiedSince = fiveMinutesAgo.toUTCString();
+ 
+-            const request = new Request("http://localhost:3000/cache", {
++            const request = analyticsRequest("http://localhost:3000/cache", {
+                 headers: {
+                     "If-Modified-Since": ifModifiedSince,
+                 },
+@@ -71,7 +96,7 @@ describe("Cache route", () => {
+             const twentyFiveMinutesAgo = new Date(Date.now() - 25 * 60 * 1000);
+             const ifModifiedSince = twentyFiveMinutesAgo.toUTCString();
+ 
+-            const request = new Request("http://localhost:3000/cache", {
++            const request = analyticsRequest("http://localhost:3000/cache", {
+                 headers: {
+                     "If-Modified-Since": ifModifiedSince,
+                 },
+@@ -94,7 +119,7 @@ describe("Cache route", () => {
+             );
+             const ifModifiedSince = thirtyOneDaysAgo.toUTCString();
+ 
+-            const request = new Request("http://localhost:3000/cache", {
++            const request = analyticsRequest("http://localhost:3000/cache", {
+                 headers: {
+                     "If-Modified-Since": ifModifiedSince,
+                 },
+@@ -117,7 +142,7 @@ describe("Cache route", () => {
+             );
+             const ifModifiedSince = twentyFourHoursAgo.toUTCString();
+ 
+-            const request = new Request("http://localhost:3000/cache", {
++            const request = analyticsRequest("http://localhost:3000/cache", {
+                 headers: {
+                     "If-Modified-Since": ifModifiedSince,
+                 },
+@@ -146,7 +171,7 @@ describe("Cache route", () => {
+             );
+             const ifModifiedSince = midnightPlusOneSecond.toUTCString();
+ 
+-            const request = new Request("http://localhost:3000/cache", {
++            const request = analyticsRequest("http://localhost:3000/cache", {
+                 headers: {
+                     "If-Modified-Since": ifModifiedSince,
+                 },
+@@ -179,7 +204,7 @@ describe("Cache route", () => {
+             );
+             const ifModifiedSince = midnightPlusTwoSeconds.toUTCString();
+ 
+-            const request = new Request("http://localhost:3000/cache", {
++            const request = analyticsRequest("http://localhost:3000/cache", {
+                 headers: {
+                     "If-Modified-Since": ifModifiedSince,
+                 },
+diff --git a/packages/server/app/routes/__tests__/collect.test.tsx b/packages/server/app/routes/__tests__/collect.test.tsx
+index 8372e34..c7dd043 100644
+--- a/packages/server/app/routes/__tests__/collect.test.tsx
++++ b/packages/server/app/routes/__tests__/collect.test.tsx
+@@ -1,5 +1,6 @@
+ import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+ import { collectRequestHandler } from "../../analytics/collect";
++import { loader } from "../collect";
+ 
+ const originalTZ = process.env.TZ;
+ 
+@@ -94,4 +95,33 @@ describe("collect endpoint", () => {
+         // Also verify it's a future date from our initial date
+         expect(returnedDate.getTime()).toBeGreaterThan(initialDate.getTime());
+     });
++
++    test("allows only the production application origin", async () => {
++        const context = { cloudflare: { env: mockEnv, cf: {} } };
++        const allowed = new Request(
++            "https://ytpr-data.example.workers.dev/collect?sid=test-site&ht=1",
++            { headers: { Origin: "https://ytpr.netlify.app" } },
++        );
++        const rejected = new Request(
++            "https://ytpr-data.example.workers.dev/collect?sid=test-site&ht=1",
++            { headers: { Origin: "https://example.com" } },
++        );
++        const missing = new Request(
++            "https://ytpr-data.example.workers.dev/collect?sid=test-site&ht=1",
++        );
++
++        const allowedResponse = await loader({ request: allowed, context } as any);
++        expect(allowedResponse.status).toBe(200);
++        expect(allowedResponse.headers.get("Access-Control-Allow-Origin")).toBe(
++            "https://ytpr.netlify.app",
++        );
++        expect(allowedResponse.headers.get("Vary")).toBe("Origin");
++
++        expect((await loader({ request: rejected, context } as any)).status).toBe(
++            403,
++        );
++        expect((await loader({ request: missing, context } as any)).status).toBe(
++            403,
++        );
++    });
+ });
+diff --git a/packages/server/app/routes/__tests__/dashboard.test.tsx b/packages/server/app/routes/__tests__/dashboard.test.tsx
+index 5d56977..7fecad9 100644
+--- a/packages/server/app/routes/__tests__/dashboard.test.tsx
++++ b/packages/server/app/routes/__tests__/dashboard.test.tsx
+@@ -242,6 +242,12 @@ describe("Dashboard route", () => {
+                             return { countsByProperty: [] };
+                         },
+                     },
++                    {
++                        path: "/resources/playlist-measurements",
++                        loader: () => {
++                            return { playlistMeasurements: [] };
++                        },
++                    },
+                     {
+                         path: "/resources/referrer",
+                         loader: () => {
+@@ -310,6 +316,7 @@ describe("Dashboard route", () => {
+ 
+         await waitFor(() => screen.findByText("Path"));
+         expect(screen.getByText("Path")).toBeInTheDocument();
++        expect(screen.getByText("Playlist Measurements")).toBeInTheDocument();
+         expect(screen.getByText("Referrer")).toBeInTheDocument();
+         expect(screen.getByText("Browser")).toBeInTheDocument();
+         expect(screen.getByText("Country")).toBeInTheDocument();
+@@ -382,6 +389,19 @@ describe("Dashboard route", () => {
+                             };
+                         },
+                     },
++                    {
++                        path: "/resources/playlist-measurements",
++                        loader: () => {
++                            return {
++                                playlistMeasurements: [
++                                    {
++                                        playlistId: "PLabc",
++                                        measurements: 12,
++                                    },
++                                ],
++                            };
++                        },
++                    },
+                     {
+                         path: "/resources/referrer",
+                         loader: () => {
+diff --git a/packages/server/app/routes/__tests__/resources.playlist-measurements.test.tsx b/packages/server/app/routes/__tests__/resources.playlist-measurements.test.tsx
+new file mode 100644
+index 0000000..86bc735
+--- /dev/null
++++ b/packages/server/app/routes/__tests__/resources.playlist-measurements.test.tsx
+@@ -0,0 +1,54 @@
++// @vitest-environment jsdom
++import { render, screen } from "@testing-library/react";
++import { describe, expect, test, vi } from "vitest";
++import "vitest-dom/extend-expect";
++
++import {
++    PlaylistMeasurementsTable,
++    loader,
++} from "../resources.playlist-measurements";
++import { createFetchResponse, getDefaultContext } from "./testutils";
++
++vi.mock("~/lib/auth", () => ({
++    requireAuth: vi.fn(),
++}));
++
++describe("Resources/Playlist measurements route", () => {
++    test("returns a ten-row page from the measurement query", async () => {
++        global.fetch = vi.fn().mockResolvedValue(
++            createFetchResponse({
++                data: [
++                    { path: "/playlist/PLabc", measurements: "12" },
++                ],
++            }),
++        );
++
++        const response = await loader({
++            ...getDefaultContext(),
++            request: {
++                url: "http://localhost:3000/resources/playlist-measurements?site=ytpr-production&interval=30d&page=1",
++            },
++        } as any);
++
++        expect(response).toEqual({
++            playlistMeasurements: [
++                { playlistId: "PLabc", measurements: 12 },
++            ],
++            page: 1,
++        });
++    });
++
++    test("renders exact IDs as YouTube playlist links", () => {
++        render(
++            <PlaylistMeasurementsTable
++                rows={[{ playlistId: "PLabc_123-xyz", measurements: 7 }]}
++            />,
++        );
++
++        expect(screen.getByText("PLabc_123-xyz")).toHaveAttribute(
++            "href",
++            "https://www.youtube.com/playlist?list=PLabc_123-xyz",
++        );
++        expect(screen.getByText("7")).toBeInTheDocument();
++    });
++});
+diff --git a/packages/server/app/routes/cache.tsx b/packages/server/app/routes/cache.tsx
+index ed7ef55..8e32a58 100644
+--- a/packages/server/app/routes/cache.tsx
++++ b/packages/server/app/routes/cache.tsx
+@@ -1,5 +1,9 @@
+ import type { LoaderFunctionArgs } from "react-router";
+ import { handleCacheHeaders } from "~/analytics/collect";
++import {
++    analyticsCorsHeaders,
++    rejectInvalidAnalyticsOrigin,
++} from "~/lib/analytics-origin";
+ 
+ export type CacheLoaderBody = {
+   ht: number;
+@@ -14,6 +18,9 @@ export type CacheLoaderBody = {
+  * next request.
+  */
+ export async function loader({ request }: LoaderFunctionArgs) {
++    const rejected = rejectInvalidAnalyticsOrigin(request);
++    if (rejected) return rejected;
++
+     const ifModifiedSince = request.headers.get("if-modified-since");
+ 
+     const { hits, nextLastModifiedDate } = handleCacheHeaders(ifModifiedSince);
+@@ -26,7 +33,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
+     // Return the JSON payload with the appropriate Last-Modified header
+     return new Response(JSON.stringify(payload), {
+         headers: {
+-            "Access-Control-Allow-Origin": "*",
++            ...analyticsCorsHeaders,
+             "Content-Type": "application/json",
+             "Last-Modified": nextLastModifiedDate.toUTCString(),
+             Expires: "Mon, 01 Jan 1990 00:00:00 GMT",
+diff --git a/packages/server/app/routes/collect.tsx b/packages/server/app/routes/collect.tsx
+index 358af1e..a341eb4 100644
+--- a/packages/server/app/routes/collect.tsx
++++ b/packages/server/app/routes/collect.tsx
+@@ -1,11 +1,15 @@
+ import { LoaderFunctionArgs } from "react-router";
+ import { collectRequestHandler } from "~/analytics/collect";
++import { rejectInvalidAnalyticsOrigin } from "~/lib/analytics-origin";
+ 
+ // NOTE: This is the Remix/Vite entry point for the /collect endpoin
+ //
+ //       On Cloudflare Pages, the entry point is found in functions/collect.ts
+ 
+ export async function loader({ request, context }: LoaderFunctionArgs) {
++    const rejected = rejectInvalidAnalyticsOrigin(request);
++    if (rejected) return rejected;
++
+     return collectRequestHandler(
+         request,
+         context.cloudflare.env,
+diff --git a/packages/server/app/routes/dashboard.tsx b/packages/server/app/routes/dashboard.tsx
+index aa4fd94..ecabc14 100644
+--- a/packages/server/app/routes/dashboard.tsx
++++ b/packages/server/app/routes/dashboard.tsx
+@@ -47,6 +47,7 @@ import SearchFilterBadges from "~/components/SearchFilterBadges";
+ import { TimeSeriesCard } from "./resources.timeseries";
+ import { StatsCard } from "./resources.stats";
+ import { requireAuth } from "~/lib/auth";
++import { PlaylistMeasurementsCard } from "./resources.playlist-measurements";
+ 
+ export const meta: MetaFunction = () => {
+     return [
+@@ -251,6 +252,15 @@ export default function Dashboard() {
+                         timezone={userTimezone}
+                     />
+                 </div>
++                <div className="w-full mb-4">
++                    <PlaylistMeasurementsCard
++                        key={`${data.siteId}:${data.interval}:${userTimezone}:${JSON.stringify(data.filters)}`}
++                        siteId={data.siteId}
++                        interval={data.interval}
++                        filters={data.filters}
++                        timezone={userTimezone}
++                    />
++                </div>
+                 <div className="grid md:grid-cols-2 gap-4 mb-4">
+                     <PathsCard
+                         siteId={data.siteId}
+diff --git a/packages/server/app/routes/resources.playlist-measurements.tsx b/packages/server/app/routes/resources.playlist-measurements.tsx
+new file mode 100644
+index 0000000..e8a15ae
+--- /dev/null
++++ b/packages/server/app/routes/resources.playlist-measurements.tsx
+@@ -0,0 +1,116 @@
++import { useEffect, useState } from "react";
++import { useFetcher } from "react-router";
++import type { LoaderFunctionArgs } from "react-router";
++
++import type { PlaylistMeasurement } from "~/analytics/query";
++import PaginationButtons from "~/components/PaginationButtons";
++import {
++    Card,
++    CardContent,
++    CardHeader,
++    CardTitle,
++} from "~/components/ui/card";
++import type { SearchFilters } from "~/lib/types";
++import {
++    getFiltersFromSearchParams,
++    paramsFromUrl,
++} from "~/lib/utils";
++import { requireAuth } from "~/lib/auth";
++
++export async function loader({ context, request }: LoaderFunctionArgs) {
++    await requireAuth(request, context.cloudflare.env);
++    const { analyticsEngine } = context;
++    const { interval, site, page = 1 } = paramsFromUrl(request.url);
++    const url = new URL(request.url);
++    const timezone = url.searchParams.get("timezone") || "UTC";
++    const filters = getFiltersFromSearchParams(url.searchParams);
++
++    return {
++        playlistMeasurements:
++            await analyticsEngine.getPlaylistMeasurements(
++                site,
++                interval,
++                timezone,
++                filters,
++                Number(page),
++            ),
++        page: Number(page),
++    };
++}
++
++export function PlaylistMeasurementsTable({
++    rows,
++}: {
++    rows: PlaylistMeasurement[];
++}) {
++    return (
++        <table className="w-full text-sm">
++            <thead>
++                <tr className="border-b text-left">
++                    <th className="pb-2 font-medium">Playlist ID</th>
++                    <th className="pb-2 text-right font-medium">
++                        Measurements
++                    </th>
++                </tr>
++            </thead>
++            <tbody>
++                {rows.map(({ playlistId, measurements }) => (
++                    <tr key={playlistId} className="border-b last:border-0">
++                        <td className="py-2 pr-4">
++                            <a
++                                className="text-primary underline-offset-4 hover:underline"
++                                href={`https://www.youtube.com/playlist?list=${encodeURIComponent(playlistId)}`}
++                                target="_blank"
++                                rel="noreferrer"
++                            >
++                                {playlistId}
++                            </a>
++                        </td>
++                        <td className="py-2 text-right">{measurements}</td>
++                    </tr>
++                ))}
++            </tbody>
++        </table>
++    );
++}
++
++export function PlaylistMeasurementsCard({
++    siteId,
++    interval,
++    filters,
++    timezone,
++}: {
++    siteId: string;
++    interval: string;
++    filters: SearchFilters;
++    timezone: string;
++}) {
++    const dataFetcher = useFetcher<typeof loader>();
++    const rows = dataFetcher.data?.playlistMeasurements || [];
++    const [page, setPage] = useState(1);
++
++    useEffect(() => {
++        dataFetcher.submit(
++            { site: siteId, interval, timezone, ...filters, page },
++            { method: "get", action: "/resources/playlist-measurements" },
++        );
++        // dataFetcher is intentionally stable and omitted from dependencies.
++        // eslint-disable-next-line react-hooks/exhaustive-deps
++    }, [siteId, interval, filters, timezone, page]);
++
++    return (
++        <Card className={dataFetcher.state === "loading" ? "opacity-60" : ""}>
++            <CardHeader>
++                <CardTitle>Playlist Measurements</CardTitle>
++            </CardHeader>
++            <CardContent>
++                <PlaylistMeasurementsTable rows={rows} />
++                <PaginationButtons
++                    page={page}
++                    hasMore={rows.length === 10}
++                    handlePagination={setPage}
++                />
++            </CardContent>
++        </Card>
++    );
++}
+diff --git a/packages/server/worker-configuration.d.ts b/packages/server/worker-configuration.d.ts
+index 3d59e31..3cad15f 100644
+--- a/packages/server/worker-configuration.d.ts
++++ b/packages/server/worker-configuration.d.ts
+@@ -10,7 +10,6 @@ declare namespace Cloudflare {
+ 		CF_AUTH_ENABLED: string;
+ 		CF_TRACKER_SCRIPT_NAME: string;
+ 		CF_STORAGE_ENABLED: string;
+-		DAILY_ROLLUPS: R2Bucket;
+ 		WEB_COUNTER_AE: AnalyticsEngineDataset;
+ 		ASSETS: Fetcher;
+ 	}
+diff --git a/packages/server/workers/app.ts b/packages/server/workers/app.ts
+index 76cb782..987a479 100644
+--- a/packages/server/workers/app.ts
++++ b/packages/server/workers/app.ts
+@@ -1,8 +1,4 @@
+-import type { 
+-    ExecutionContext,
+-    ExportedHandler,
+-    ScheduledController,
+-} from "@cloudflare/workers-types";
++import type { ExportedHandler } from "@cloudflare/workers-types";
+ import { createRequestHandler, type ServerBuild } from "react-router";
+ 
+ /**
+@@ -12,31 +8,10 @@ import { createRequestHandler, type ServerBuild } from "react-router";
+  */
+ import { getLoadContext } from "../app/load-context";
+ import * as build from "../build/server";
+-import { extractAsArrow } from "./lib/arrow";
+ 
+ const requestHandler = createRequestHandler(build as unknown as ServerBuild);
+ 
+ export default {
+-        async scheduled(
+-        _controller: ScheduledController,
+-        env: Env,
+-        ctx: ExecutionContext,
+-    ) {
+-        if (env.CF_STORAGE_ENABLED === "false") return
+-        try {
+-            ctx.waitUntil(
+-                extractAsArrow(
+-                    {
+-                        accountId: env.CF_ACCOUNT_ID,
+-                        bearerToken: env.CF_BEARER_TOKEN,
+-                    },
+-                    env.DAILY_ROLLUPS,
+-                ),
+-            );
+-        } catch (error) {
+-            console.error(error);
+-        }
+-    },
+     // @ts-expect-error TODO figure out types here
+     async fetch(request: any, env: any, ctx: any) {
+         try {
+diff --git a/packages/server/wrangler.json b/packages/server/wrangler.json
+index 435959b..4ee79fc 100644
+--- a/packages/server/wrangler.json
++++ b/packages/server/wrangler.json
+@@ -1,6 +1,6 @@
+ {
+     "main": "./workers/app.ts",
+-    "name": "counterscale",
++    "name": "ytpr-data",
+     "compatibility_flags": ["nodejs_compat_v2"],
+     "compatibility_date": "2024-12-13",
+     "assets": {
+@@ -12,17 +12,5 @@
+             "binding": "WEB_COUNTER_AE",
+             "dataset": "metricsDataset"
+         }
+-    ],
+-    "r2_buckets": [
+-        {
+-            "bucket_name": "counterscale-daily-rollups",
+-            "preview_bucket_name": "counterscale-daily-rollups-dev",
+-            "binding": "DAILY_ROLLUPS"
+-        }
+-    ],
+-    "triggers": {
+-        "crons": [
+-            "0 2 * * *"
+-        ]
+-    }
++    ]
+ }
+

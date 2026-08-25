@@ -8,6 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.pnpm-store
 dist
 dist-ssr
 *.local
@@ -24,3 +25,9 @@ dist-ssr
 *.sw?
 notes.md
 *.excalidraw
+
+# Local research and documentation
+docs/
+
+# Local Netlify folder
+.netlify

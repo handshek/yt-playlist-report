@@ -19,6 +19,7 @@ import {
 import { Zap, History, Clock, Film, ExternalLink } from "lucide-react";
 import Footer from "@/components/Footer";
 import { Skeleton } from "@/components/ui/skeleton";
+import PlaylistMeasurement from "@/components/PlaylistMeasurement";
 import { logoIcon } from "@/assets";
 import QRCode from "react-qr-code";
 
@@ -58,69 +59,72 @@ const PlaylistDuration: React.FC = () => {
   const columns = createColumns(playlistId!);
 
   return (
-    <div className="mx-auto">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 py-10 md:py-14">
-        <div className="bg-neutral-50 border p-4 rounded-xl flex flex-col justify-between">
-          <div className="flex justify-between items-start">
+    <>
+      <PlaylistMeasurement playlistId={playlistId!} />
+      <div className="mx-auto">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 py-10 md:py-14">
+          <div className="bg-neutral-50 border p-4 rounded-xl flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+              <div className="flex gap-1 xl:gap-2 items-center">
+                <Clock className="w-4 h-4 xl:w-5 xl:h-5  text-gray-400" />
+                <h2 className="text-xs xl:text-sm font-semibold uppercase text-gray-400">
+                  Total Duration
+                </h2>
+              </div>
+              <div className="flex gap-2 items-start">
+                <span className="flex items-center text-sm xl:text-base">
+                  <Zap className="w-3 h-3 xl:w-4 xl:h-4 mr-1" /> Speed:
+                </span>
+                <Select onValueChange={handleSpeedChange} defaultValue="1.0">
+                  <SelectTrigger className="w-fit min-w-[60px] py-0.5 px-1.5 h-fit bg-transparent text-sm lg:text-base bg-gray-200 hover:bg-gray-300 ">
+                    <SelectValue placeholder="Select speed" />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {PLAYBACK_SPEED_VALUES.map((value) => (
+                      <SelectItem value={value}>{`${value}`}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <p className="text-3xl xl:text-4xl pt-4 xl:pt-6">
+              {formatDuration(speedAdjustedDuration)}
+            </p>
+          </div>
+          <div className="bg-neutral-50 border p-4 rounded-xl flex flex-col justify-between">
             <div className="flex gap-1 xl:gap-2 items-center">
-              <Clock className="w-4 h-4 xl:w-5 xl:h-5  text-gray-400" />
-              <h2 className="text-xs xl:text-sm font-semibold uppercase text-gray-400">
-                Total Duration
+              <History className="w-4 h-4 xl:w-5 xl:h-5  text-gray-400" />
+              <h2 className="text-sm font-semibold uppercase text-gray-400">
+                Average Duration
               </h2>
             </div>
-            <div className="flex gap-2 items-start">
-              <span className="flex items-center text-sm xl:text-base">
-                <Zap className="w-3 h-3 xl:w-4 xl:h-4 mr-1" /> Speed:
-              </span>
-              <Select onValueChange={handleSpeedChange} defaultValue="1.0">
-                <SelectTrigger className="w-fit min-w-[60px] py-0.5 px-1.5 h-fit bg-transparent text-sm lg:text-base bg-gray-200 hover:bg-gray-300 ">
-                  <SelectValue placeholder="Select speed" />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  {PLAYBACK_SPEED_VALUES.map((value) => (
-                    <SelectItem value={value}>{`${value}`}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <p className="text-3xl xl:text-4xl pt-4 xl:pt-6">
+              {formatDuration(avgDuration)}
+            </p>
+          </div>
+          <div className="bg-neutral-50 border p-4 rounded-xl flex flex-col justify-between">
+            <div className="flex gap-1 xl:gap-2 items-center">
+              <Film className="w-4 h-4 xl:w-5 xl:h-5  text-gray-400" />
+              <h2 className="text-sm font-semibold uppercase text-gray-400">
+                Total Videos
+              </h2>
             </div>
+            <p className="text-3xl xl:text-4xl pt-4 xl:pt-6">
+              {selectedVideos.length}
+            </p>
           </div>
-          <p className="text-3xl xl:text-4xl pt-4 xl:pt-6">
-            {formatDuration(speedAdjustedDuration)}
-          </p>
         </div>
-        <div className="bg-neutral-50 border p-4 rounded-xl flex flex-col justify-between">
-          <div className="flex gap-1 xl:gap-2 items-center">
-            <History className="w-4 h-4 xl:w-5 xl:h-5  text-gray-400" />
-            <h2 className="text-sm font-semibold uppercase text-gray-400">
-              Average Duration
-            </h2>
-          </div>
-          <p className="text-3xl xl:text-4xl pt-4 xl:pt-6">
-            {formatDuration(avgDuration)}
-          </p>
-        </div>
-        <div className="bg-neutral-50 border p-4 rounded-xl flex flex-col justify-between">
-          <div className="flex gap-1 xl:gap-2 items-center">
-            <Film className="w-4 h-4 xl:w-5 xl:h-5  text-gray-400" />
-            <h2 className="text-sm font-semibold uppercase text-gray-400">
-              Total Videos
-            </h2>
-          </div>
-          <p className="text-3xl xl:text-4xl pt-4 xl:pt-6">
-            {selectedVideos.length}
-          </p>
+        <div className="space-y-2">
+          <VideoTable
+            columns={columns}
+            data={selectedVideos}
+            onRangeChange={setValues}
+            rangeValue={values}
+            totalVideos={data.videos.length}
+          />
         </div>
       </div>
-      <div className="space-y-2">
-        <VideoTable
-          columns={columns}
-          data={selectedVideos}
-          onRangeChange={setValues}
-          rangeValue={values}
-          totalVideos={data.videos.length}
-        />
-      </div>
-    </div>
+    </>
   );
 };
 
