@@ -58,6 +58,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+// SPA fallback documents render only the root route until client routes load.
+export function HydrateFallback() {
+  return (
+    <main
+      aria-live="polite"
+      className="container grid min-h-dvh place-content-center py-20 text-center"
+    >
+      <p className="text-lg font-semibold text-neutral-600">
+        Loading YT Playlist Report&hellip;
+      </p>
+    </main>
+  );
+}
+
 export default function Root() {
   return (
     <QueryClientProvider client={queryClient}>
