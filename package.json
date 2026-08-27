@@ -8,7 +8,8 @@
     "build": "tsc && react-router build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview --outDir build/client",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:seo": "pnpm build && node scripts/verify-seo-build.mjs"
   },
   "dependencies": {
     "@counterscale/tracker": "3.4.1",

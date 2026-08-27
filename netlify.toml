@@ -3,6 +3,17 @@ command = "pnpm build"
 publish = "build/client"
 
 [[redirects]]
+from = "/compare/*"
+to = "/404.html"
+status = 404
+
+[[redirects]]
 from = "/*"
 to = "/__spa-fallback.html"
 status = 200
+
+[[headers]]
+for = "/playlist/*"
+
+[headers.values]
+X-Robots-Tag = "noindex, follow"

@@ -17,16 +17,11 @@ const Hero = () => {
     <section className="py-28">
       <div>
         <h1 className="text-4xl text-center md:text-6xl text-neutral-800 font-black max-w-[25ch] md:text-center mx-auto my-10">
-          <FlipWords words={strings} className="px-0 text-center" />
-          <br />
-          of <em>any</em>{" "}
-          <span className="relative block w-fit mx-auto lg:inline">
-            <span className="underline decoration-red-600 decoration">
-              YouTube Playlist
-            </span>
-            <span className="after:content-[''] after:absolute after:w-3 after:h-3 md:after:w-5 md:after:h-5 after:bg-red-600 after:rounded-full after:right--3 after:bottom-[-2px] lg:after:-right-5 lg:after:bottom-[8px]"></span>
-          </span>
+          Free YouTube Playlist Length Calculator &amp; Analyzer
         </h1>
+        <p className="mx-auto -mt-5 min-h-10 max-w-2xl text-center text-lg font-semibold text-neutral-600 md:text-2xl">
+          <FlipWords words={strings} className="px-0 text-center text-red-700" />
+        </p>
       </div>
       <Form />
       <div className="mt-16">

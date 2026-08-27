@@ -5,6 +5,18 @@ import Cta from "@/components/Cta";
 import { useRef } from "react";
 import HeaderNav from "@/components/HeaderNav";
 import Footer from "@/components/Footer";
+import type { MetaFunction } from "react-router";
+import { pageMeta } from "@/lib/site";
+
+export const getLandingMeta = () =>
+  pageMeta({
+    title: "Free YouTube Playlist Length Calculator & Analyzer | YTPR",
+    description:
+      "Calculate YouTube playlist length, adjust playback speed, select a video range, search titles, and explore detailed playlist metrics for free.",
+    pathname: "/",
+  });
+
+export const meta: MetaFunction = getLandingMeta;
 
 function Landing() {
   const heroRef = useRef<HTMLDivElement>(null);

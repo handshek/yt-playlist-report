@@ -19,6 +19,7 @@ const routes: RouteObject[] = [
     element: <Analytics />,
     children: [
       { path: "/", element: <div>Home</div> },
+      { path: "/compare/:comparisonSlug", element: <div>Comparison</div> },
       { path: "/playlist/:playlistId", element: <div>Report</div> },
     ],
   },
@@ -64,6 +65,20 @@ describe("Analytics", () => {
 
     await waitFor(() => {
       expect(Counterscale.trackPageview).not.toHaveBeenCalled();
+    });
+  });
+
+  it("tracks comparison pages as ordinary pageviews", async () => {
+    const router = createMemoryRouter(routes, {
+      initialEntries: ["/compare/yt-playlist-report-vs-ytpla"],
+    });
+
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => {
+      expect(Counterscale.trackPageview).toHaveBeenCalledWith({
+        url: "/compare/yt-playlist-report-vs-ytpla",
+      });
     });
   });
 
