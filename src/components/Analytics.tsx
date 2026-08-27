@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation } from "react-router";
 import { trackPageview } from "@/lib/counterscale";
 
 const PLAYLIST_REPORT_PATH = /^\/playlist\/[^/]+\/?$/;

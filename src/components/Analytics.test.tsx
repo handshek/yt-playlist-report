@@ -2,9 +2,9 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createMemoryRouter,
-  RouterProvider,
   type RouteObject,
-} from "react-router-dom";
+} from "react-router";
+import { RouterProvider } from "react-router/dom";
 import * as Counterscale from "@counterscale/tracker";
 import Analytics from "./Analytics";
 

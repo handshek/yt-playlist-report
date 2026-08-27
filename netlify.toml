@@ -1,4 +1,8 @@
+[build]
+command = "pnpm build"
+publish = "build/client"
+
 [[redirects]]
 from = "/*"
-to = "/index.html"
+to = "/__spa-fallback.html"
 status = 200

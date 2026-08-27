@@ -15,4 +15,14 @@ module.exports = {
       { allowConstantExport: true },
     ],
   },
+  overrides: [
+    {
+      // React Router route modules intentionally export metadata and loaders
+      // beside their components, so the Fast Refresh heuristic does not apply.
+      files: ['src/root.tsx', 'src/pages/**/*.tsx'],
+      rules: {
+        'react-refresh/only-export-components': 'off',
+      },
+    },
+  ],
 }

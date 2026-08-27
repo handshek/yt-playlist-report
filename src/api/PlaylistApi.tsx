@@ -1,5 +1,5 @@
 import { useSuspenseQuery, type QueryClient } from "@tanstack/react-query";
-import { defer, LoaderFunction, LoaderFunctionArgs } from "react-router-dom";
+import { LoaderFunction, LoaderFunctionArgs } from "react-router";
 
 // Interfaces
 export interface PlaylistResponse {
@@ -323,7 +323,7 @@ export const loadPlaylist = (queryClient: QueryClient): LoaderFunction => {
 
       return {
         playlistDetails,
-        videoDetails: defer({ data: playlistDetailsPromise }),
+        videoDetails: playlistDetailsPromise,
       };
     } catch (error) {
       console.error("Error in loader function:", error);

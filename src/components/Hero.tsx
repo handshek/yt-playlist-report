@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import Form from "./Form";
 import { Button } from "./ui/button";
 import { FlipWords } from "./ui/flip-words";
