@@ -5,17 +5,19 @@ import {
   Meta,
   Scripts,
   ScrollRestoration,
+  isRouteErrorResponse,
+  useRouteError,
   type LinksFunction,
   type MetaFunction,
 } from "react-router";
 import { Toaster } from "sonner";
 import Analytics from "@/components/Analytics";
-import favicon from "@/assets/favicon.ico";
+import NotFound from "@/pages/NotFound";
 import { queryClient } from "@/lib/query-client";
 import "./index.css";
 
 export const links: LinksFunction = () => [
-  { rel: "icon", href: favicon, type: "image/x-icon" },
+  { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",
@@ -63,5 +65,25 @@ export default function Root() {
       <Toaster />
       {import.meta.env.DEV ? <ReactQueryDevtools initialIsOpen={false} /> : null}
     </QueryClientProvider>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const isNotFound = isRouteErrorResponse(error) && error.status === 404;
+
+  if (isNotFound) {
+    return <NotFound />;
+  }
+
+  const message = error instanceof Error ? error.message : "Unexpected error";
+
+  return (
+    <main className="container grid min-h-[60vh] place-content-center py-20 text-center">
+      <h1 className="text-4xl font-black text-neutral-950">
+        Something went wrong
+      </h1>
+      <p className="mt-4 text-lg text-neutral-600">{message}</p>
+    </main>
   );
 }
