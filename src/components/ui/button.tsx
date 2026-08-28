@@ -53,4 +53,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 )
 Button.displayName = "Button"
 
+// Keep the shared style factory colocated with Button for shadcn compatibility.
+// eslint-disable-next-line react-refresh/only-export-components
 export { Button, buttonVariants }

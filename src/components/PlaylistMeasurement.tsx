@@ -6,7 +6,7 @@ interface PlaylistMeasurementProps {
 }
 
 const PlaylistMeasurement = ({ playlistId }: PlaylistMeasurementProps) => {
-  const measuredPlaylistId = useRef<string>();
+  const measuredPlaylistId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (measuredPlaylistId.current === playlistId) {

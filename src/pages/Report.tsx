@@ -1,6 +1,11 @@
 import React, { Suspense, useState } from "react";
 import { usePlaylistDuration } from "@/api/PlaylistApi";
-import { useParams, useLoaderData, Await } from "react-router-dom";
+import {
+  useParams,
+  useLoaderData,
+  Await,
+  type MetaFunction,
+} from "react-router";
 import {
   PlaylistDetails,
   VideoItem,
@@ -22,6 +27,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import PlaylistMeasurement from "@/components/PlaylistMeasurement";
 import { logoIcon } from "@/assets";
 import QRCode from "react-qr-code";
+import { queryClient } from "@/lib/query-client";
+import { loader as playlistLoader } from "@/api/PlaylistApi";
+import { pageMeta } from "@/lib/site";
+
+export const getReportMeta = (playlistId = "playlist") =>
+  pageMeta({
+    title: "YouTube Playlist Report | YT Playlist Report",
+    description:
+      "Explore the duration, playback speeds, video range, engagement metrics, and individual videos in this public YouTube playlist report.",
+    pathname: `/playlist/${playlistId}`,
+    robots: "noindex, follow",
+  });
+
+export const meta: MetaFunction = ({ params }) =>
+  getReportMeta(params.playlistId);
+
+export const clientLoader = playlistLoader(queryClient);
 
 const PLAYBACK_SPEED_VALUES = [
   "0.25",
