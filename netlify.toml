@@ -2,6 +2,10 @@
 command = "pnpm build"
 publish = "build/client"
 
+# Prerendered pages are directory URLs, so keep their canonical trailing slashes.
+[build.processing.html]
+pretty_urls = true
+
 [[redirects]]
 from = "/playlist/*"
 to = "/__spa-fallback.html"

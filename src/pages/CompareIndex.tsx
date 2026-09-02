@@ -2,15 +2,21 @@ import { ArrowRight, Check, Scale } from "lucide-react";
 import { Link, type MetaFunction } from "react-router";
 import JsonLd from "@/components/JsonLd";
 import PageShell from "@/components/PageShell";
-import { comparisonPath, comparisons } from "@/content/comparisons";
+import {
+  COMPARISON_HUB_PATH,
+  comparisonPath,
+  comparisons,
+} from "@/content/comparisons";
 import { pageMeta, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const title = "Best YouTube Playlist Analyzers Compared (2026)";
 const description =
   "Compare leading YouTube playlist length calculators and analyzers for duration, search, exports, planning, privacy, detailed metrics, and sharing.";
 
-export const meta: MetaFunction = () =>
-  pageMeta({ title, description, pathname: "/compare" });
+export const getCompareIndexMeta = () =>
+  pageMeta({ title, description, pathname: COMPARISON_HUB_PATH });
+
+export const meta: MetaFunction = getCompareIndexMeta;
 
 const CompareIndex = () => {
   const structuredData = {
@@ -18,7 +24,7 @@ const CompareIndex = () => {
     "@type": "CollectionPage",
     name: title,
     description,
-    url: `${SITE_URL}/compare`,
+    url: `${SITE_URL}${COMPARISON_HUB_PATH}`,
     mainEntity: {
       "@type": "ItemList",
       itemListElement: comparisons.map((comparison, index) => ({

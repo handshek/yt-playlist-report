@@ -287,5 +287,7 @@ export const comparisonBySlug = new Map(
   comparisons.map((comparison) => [comparison.slug, comparison])
 );
 
+export const COMPARISON_HUB_PATH = "/compare/";
+
 export const comparisonPath = (comparison: Comparison) =>
-  `/compare/${comparison.slug}`;
+  `${COMPARISON_HUB_PATH}${comparison.slug}/`;

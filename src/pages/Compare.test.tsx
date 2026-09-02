@@ -1,6 +1,11 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router";
+import {
+  COMPARISON_HUB_PATH,
+  comparisonPath,
+  comparisons,
+} from "@/content/comparisons";
 import Compare from "./Compare";
 import CompareIndex from "./CompareIndex";
 
@@ -10,7 +15,7 @@ describe("comparison pages", () => {
   it("presents all five alternatives and recommends YT Playlist Report on the hub", async () => {
     const router = createMemoryRouter(
       [{ path: "/compare", element: <CompareIndex /> }],
-      { initialEntries: ["/compare"] }
+      { initialEntries: [COMPARISON_HUB_PATH] }
     );
 
     render(<RouterProvider router={router} />);
@@ -26,9 +31,10 @@ describe("comparison pages", () => {
   });
 
   it("renders a complete, accessible competitor comparison", async () => {
+    const comparison = comparisons[0];
     const router = createMemoryRouter(
       [{ path: "/compare/:comparisonSlug", element: <Compare /> }],
-      { initialEntries: ["/compare/yt-playlist-report-vs-ytpla"] }
+      { initialEntries: [comparisonPath(comparison)] }
     );
 
     const { container } = render(<RouterProvider router={router} />);
@@ -47,6 +53,14 @@ describe("comparison pages", () => {
     expect(screen.getByRole("heading", { name: /sources and methodology/i })).toBeTruthy();
     expect(screen.getAllByRole("link", { name: /analyze a playlist free/i })).toHaveLength(2);
     expect(screen.getAllByTestId("related-comparison")).toHaveLength(2);
+    expect(
+      screen.getByRole("link", { name: "Comparisons" }).getAttribute("href")
+    ).toBe(COMPARISON_HUB_PATH);
+    expect(
+      screen
+        .getAllByTestId("related-comparison")
+        .every((link) => link.getAttribute("href")?.endsWith("/"))
+    ).toBe(true);
   });
 
   it("returns a normal not-found response for an unknown comparison", async () => {

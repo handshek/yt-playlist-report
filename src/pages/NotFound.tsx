@@ -1,5 +1,6 @@
 import { Link, type MetaFunction } from "react-router";
 import PageShell from "@/components/PageShell";
+import { COMPARISON_HUB_PATH } from "@/content/comparisons";
 import { pageMeta, SITE_NAME } from "@/lib/site";
 
 export const getNotFoundMeta = () =>
@@ -25,7 +26,7 @@ function NotFound() {
         <p className="mt-4 text-lg text-neutral-600">
           The page may have moved, or the address may be incomplete.
         </p>
-        <Link to="/compare" className="mt-7 font-bold text-red-700 underline">
+        <Link to={COMPARISON_HUB_PATH} className="mt-7 font-bold text-red-700 underline">
           Browse playlist tool comparisons
         </Link>
       </main>

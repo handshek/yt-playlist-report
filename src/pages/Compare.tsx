@@ -3,20 +3,23 @@ import { Link, useParams, type MetaFunction } from "react-router";
 import JsonLd from "@/components/JsonLd";
 import PageShell from "@/components/PageShell";
 import {
+  COMPARISON_HUB_PATH,
   comparisonBySlug,
   comparisonPath,
   comparisons,
 } from "@/content/comparisons";
 import { pageMeta, SITE_NAME, SITE_URL } from "@/lib/site";
 
-export const meta: MetaFunction = ({ params }) => {
-  const comparison = comparisonBySlug.get(params.comparisonSlug ?? "");
+export const getCompareMeta = (comparisonSlug = "") => {
+  const comparison = comparisonBySlug.get(comparisonSlug);
 
   if (!comparison) {
     return pageMeta({
       title: `Comparison Not Found | ${SITE_NAME}`,
       description: "This playlist tool comparison could not be found.",
-      pathname: `/compare/${params.comparisonSlug ?? ""}`,
+      pathname: comparisonSlug
+        ? `${COMPARISON_HUB_PATH}${comparisonSlug}/`
+        : COMPARISON_HUB_PATH,
       robots: "noindex, follow",
     });
   }
@@ -27,6 +30,9 @@ export const meta: MetaFunction = ({ params }) => {
     pathname: comparisonPath(comparison),
   });
 };
+
+export const meta: MetaFunction = ({ params }) =>
+  getCompareMeta(params.comparisonSlug);
 
 const Compare = () => {
   const { comparisonSlug = "" } = useParams();
@@ -45,7 +51,7 @@ const Compare = () => {
           <p className="mt-4 text-lg text-neutral-600">
             The comparison may have moved, or the address may be incomplete.
           </p>
-          <Link to="/compare" className="mt-7 font-bold text-red-700 underline">
+          <Link to={COMPARISON_HUB_PATH} className="mt-7 font-bold text-red-700 underline">
             Browse all comparisons
           </Link>
         </main>
@@ -79,7 +85,7 @@ const Compare = () => {
           "@type": "ListItem",
           position: 2,
           name: "Comparisons",
-          item: `${SITE_URL}/compare`,
+          item: `${SITE_URL}${COMPARISON_HUB_PATH}`,
         },
         {
           "@type": "ListItem",
@@ -104,7 +110,7 @@ const Compare = () => {
                 <ol className="flex flex-wrap items-center gap-2">
                   <li><Link to="/" className="hover:text-red-700">Home</Link></li>
                   <li aria-hidden="true">/</li>
-                  <li><Link to="/compare" className="hover:text-red-700">Comparisons</Link></li>
+                  <li><Link to={COMPARISON_HUB_PATH} className="hover:text-red-700">Comparisons</Link></li>
                   <li aria-hidden="true">/</li>
                   <li aria-current="page">{comparison.competitorName}</li>
                 </ol>
