@@ -1,5 +1,9 @@
 import { githubIcon, xIcon } from "@/assets";
-import { comparisonPath, comparisons } from "@/content/comparisons";
+import {
+  COMPARISON_HUB_PATH,
+  comparisonPath,
+  comparisons,
+} from "@/content/comparisons";
 import { ArrowUpRight } from "lucide-react";
 import { Link } from "react-router";
 
@@ -30,7 +34,7 @@ const Footer = () => {
             </h2>
             <ul className="mt-5 space-y-3">
               <li>
-                <Link to="/compare" className="font-bold text-white hover:text-red-400">
+                <Link to={COMPARISON_HUB_PATH} className="font-bold text-white hover:text-red-400">
                   Compare all tools
                 </Link>
               </li>

@@ -6,6 +6,7 @@ import {
 } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import * as Counterscale from "@counterscale/tracker";
+import { comparisonPath, comparisons } from "@/content/comparisons";
 import Analytics from "./Analytics";
 
 vi.mock("@counterscale/tracker", () => ({
@@ -69,15 +70,16 @@ describe("Analytics", () => {
   });
 
   it("tracks comparison pages as ordinary pageviews", async () => {
+    const path = comparisonPath(comparisons[0]);
     const router = createMemoryRouter(routes, {
-      initialEntries: ["/compare/yt-playlist-report-vs-ytpla"],
+      initialEntries: [path],
     });
 
     render(<RouterProvider router={router} />);
 
     await waitFor(() => {
       expect(Counterscale.trackPageview).toHaveBeenCalledWith({
-        url: "/compare/yt-playlist-report-vs-ytpla",
+        url: path,
       });
     });
   });

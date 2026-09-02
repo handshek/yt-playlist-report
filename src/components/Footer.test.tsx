@@ -1,7 +1,11 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router";
-import { comparisons } from "@/content/comparisons";
+import {
+  COMPARISON_HUB_PATH,
+  comparisonPath,
+  comparisons,
+} from "@/content/comparisons";
 import Footer from "./Footer";
 
 afterEach(cleanup);
@@ -16,7 +20,7 @@ describe("Footer", () => {
 
     expect(
       screen.getByRole("link", { name: "Compare all tools" }).getAttribute("href")
-    ).toBe("/compare");
+    ).toBe(COMPARISON_HUB_PATH);
 
     for (const comparison of comparisons) {
       expect(
@@ -25,7 +29,7 @@ describe("Footer", () => {
             name: `YT Playlist Report vs ${comparison.competitorName}`,
           })
           .getAttribute("href")
-      ).toBe(`/compare/${comparison.slug}`);
+      ).toBe(comparisonPath(comparison));
     }
   });
 });
