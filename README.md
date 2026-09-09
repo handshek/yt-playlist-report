@@ -51,6 +51,15 @@ The app supports a patched, password-protected [Counterscale v3.4.1](https://git
    ```
 3. Rebuild and deploy the app.
 
+### GitHub stars indicator
+
+The header loads the repository's star count from `/api/github-stars`. The
+Netlify function fetches the count server-side and returns only
+`{ "count": number }`. You can configure the optional `GITHUB_TOKEN` Netlify
+environment variable to increase the GitHub API rate limit; the route also
+works without it. Successful responses are cached for 24 hours and may remain
+stale for one additional hour while the cache refreshes in the background.
+
 Normal navigation is recorded as a pageview. A playlist path such as `/playlist/PLabc123` is recorded only after its complete report loads successfully, once per completed report view. Analytics failures never block report generation.
 
 The versioned [Counterscale patch](analytics/counterscale/counterscale-v3.4.1.patch) adds the playlist leaderboard, exact-origin ingestion controls, bot suppression, and removes the R2 binding and archive cron.
