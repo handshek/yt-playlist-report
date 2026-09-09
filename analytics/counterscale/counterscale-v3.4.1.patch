@@ -26,10 +26,10 @@ index c70f0f6..93f78a8 100644
 +    });
  });
 diff --git a/packages/server/app/analytics/__tests__/query.test.ts b/packages/server/app/analytics/__tests__/query.test.ts
-index c21d8d6..3a48774 100644
+index c21d8d6..861f554 100644
 --- a/packages/server/app/analytics/__tests__/query.test.ts
 +++ b/packages/server/app/analytics/__tests__/query.test.ts
-@@ -294,6 +294,41 @@ describe("AnalyticsEngineAPI", () => {
+@@ -294,6 +294,121 @@ describe("AnalyticsEngineAPI", () => {
          });
      });
  
@@ -66,6 +66,86 @@ index c21d8d6..3a48774 100644
 +            expect(query).toContain("LIMIT 10");
 +            expect(query).not.toContain("double1 = 1");
 +        });
++    });
++
++    describe("getSeoFunnelMetrics", () => {
++        test("maps only reserved event paths into aggregate funnel metrics", async () => {
++            fetch.mockResolvedValue(
++                createFetchResponse({
++                    data: [
++                        { path: "/events/report-submit", count: "10" },
++                        { path: "/events/report-success", count: "7" },
++                        {
++                            path: "/events/report-error/invalid-url",
++                            count: "2",
++                        },
++                        {
++                            path: "/events/report-error/fetch-failed",
++                            count: "1",
++                        },
++                        {
++                            path: "/events/content-cta/yt-playlist-report-vs-ytpla",
++                            count: "4",
++                        },
++                        {
++                            path: "/events/content-cta/user-supplied-value",
++                            count: "98",
++                        },
++                        { path: "/events/not-supported", count: "99" },
++                    ],
++                }),
++            );
++
++            const result = await api.getSeoFunnelMetrics(
++                "ytpr-production",
++                "30d",
++                "Asia/Kolkata",
++                { country: "IN" },
++            );
++
++            expect(result).toEqual({
++                reportSubmits: 10,
++                reportSuccesses: 7,
++                reportErrors: { invalidUrl: 2, fetchFailed: 1 },
++                contentCtaClicks: [
++                    {
++                        slug: "yt-playlist-report-vs-ytpla",
++                        clicks: 4,
++                    },
++                ],
++            });
++
++            const query = fetch.mock.calls[0][1].body as string;
++            expect(query).toContain("blob3 LIKE '/events/%'");
++            expect(query).toContain("blob8 = 'ytpr-production'");
++            expect(query).toContain("blob4 = 'IN'");
++        });
++    });
++
++    test("excludes reserved events from ordinary analytics queries", async () => {
++        fetch.mockResolvedValue(createFetchResponse({ data: [] }));
++
++        await api.getCounts("example.com", "7d");
++        await api.getViewsGroupedByInterval(
++            "example.com",
++            "DAY",
++            new Date("2024-01-01"),
++            new Date("2024-01-02"),
++            "America/New_York",
++        );
++        await api.getVisitorCountByColumn("example.com", "path", "7d");
++        await api.getAllCountsByAllColumnsForAllSites(
++            ["path"],
++            new Date("2024-01-01"),
++            new Date("2024-01-02"),
++            "America/New_York",
++        );
++        await api.getSitesOrderedByHits("7d");
++
++        expect(fetch).toHaveBeenCalledTimes(5);
++        for (const call of fetch.mock.calls) {
++            expect(call[1].body).toContain("blob3 NOT LIKE '/events/%'");
++        }
 +    });
 +
      describe("getVisitorCountByColumn", () => {
@@ -105,10 +185,10 @@ index 193b9ce..16a8a18 100644
          Expires: "Mon, 01 Jan 1990 00:00:00 GMT",
          "Cache-Control": "no-cache",
 diff --git a/packages/server/app/analytics/query.ts b/packages/server/app/analytics/query.ts
-index 5810f7e..1a91b13 100644
+index 5810f7e..2dd5edd 100644
 --- a/packages/server/app/analytics/query.ts
 +++ b/packages/server/app/analytics/query.ts
-@@ -24,6 +24,10 @@ interface AnalyticsCountResult {
+@@ -24,6 +24,32 @@ interface AnalyticsCountResult {
  }
  
  export type ViewsGroupedByInterval = [string, AnalyticsCountResult][];
@@ -116,10 +196,51 @@ index 5810f7e..1a91b13 100644
 +    playlistId: string;
 +    measurements: number;
 +};
++export type SeoFunnelMetrics = {
++    reportSubmits: number;
++    reportSuccesses: number;
++    reportErrors: {
++        invalidUrl: number;
++        fetchFailed: number;
++    };
++    contentCtaClicks: Array<{ slug: string; clicks: number }>;
++};
++
++// Synthetic funnel events use pageview transport but must not inflate traffic.
++const ordinaryPageviewFilter = `${ColumnMappings.path} NOT LIKE '/events/%'`;
++const seoContentSlugs = new Set([
++    "yt-playlist-report-vs-ytpla",
++    "yt-playlist-report-vs-youtube-playlist-analyzer",
++    "yt-playlist-report-vs-playlistlength-app",
++    "yt-playlist-report-vs-youtubeplaylistlength-org",
++    "yt-playlist-report-vs-tunepocket",
++    "youtube-playlist-length-playback-speed",
++    "youtube-playlist-statistics",
++    "sort-youtube-playlist-by-length",
++]);
  /** Given an AnalyticsCountResult object, and an object representing a row returned from
   *  CF Analytics Engine w/ counts grouped by isVisitor, accumulate view,
   *  visit, and visitor counts.
-@@ -397,6 +401,54 @@ export class AnalyticsEngineAPI {
+@@ -248,8 +274,9 @@ export class AnalyticsEngineAPI {
+             toDateTime(_bucket, 'Etc/UTC') as bucket
+             FROM metricsDataset
+             WHERE timestamp >= toDateTime('${localStartTime.format("YYYY-MM-DD HH:mm:ss")}')
+-								AND timestamp < toDateTime('${localEndTime.format("YYYY-MM-DD HH:mm:ss")}')
++                AND timestamp < toDateTime('${localEndTime.format("YYYY-MM-DD HH:mm:ss")}')
+                 AND ${ColumnMappings.siteId} = '${siteId}'
++                AND ${ordinaryPageviewFilter}
+                 ${filterStr}
+             GROUP BY _bucket, isVisitor, isBounce
+             ORDER BY _bucket ASC`;
+@@ -354,6 +381,7 @@ export class AnalyticsEngineAPI {
+                 ${ColumnMappings.bounce} as isBounce
+             FROM metricsDataset
+             WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
++                AND ${ordinaryPageviewFilter}
+                 ${filterStr}
+             AND ${siteIdColumn} = '${siteId}'
+             GROUP BY isVisitor, isBounce
+@@ -397,6 +425,127 @@ export class AnalyticsEngineAPI {
          return returnPromise;
      }
  
@@ -155,11 +276,10 @@ index 5810f7e..1a91b13 100644
 +            throw new Error(response.statusText);
 +        }
 +
-+        const responseData =
-+            (await response.json()) as AnalyticsQueryResult<{
-+                path: string;
-+                measurements: number;
-+            }>;
++        const responseData = (await response.json()) as AnalyticsQueryResult<{
++            path: string;
++            measurements: number;
++        }>;
 +        const pageData = responseData.data.slice(
 +            limit * (page - 1),
 +            limit * page,
@@ -171,9 +291,142 @@ index 5810f7e..1a91b13 100644
 +        }));
 +    }
 +
++    async getSeoFunnelMetrics(
++        siteId: string,
++        interval: string,
++        tz?: string,
++        filters: SearchFilters = {},
++    ): Promise<SeoFunnelMetrics> {
++        const { startIntervalSql, endIntervalSql } = intervalToSql(
++            interval,
++            tz,
++        );
++        const filterStr = filtersToSql(filters);
++        const pathColumn = ColumnMappings.path;
++
++        const query = `
++            SELECT ${pathColumn} as path,
++                SUM(_sample_interval) as count
++            FROM metricsDataset
++            WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
++                AND ${ColumnMappings.siteId} = '${siteId}'
++                AND ${pathColumn} LIKE '/events/%'
++                ${filterStr}
++            GROUP BY ${pathColumn}
++            ORDER BY count DESC`;
++
++        const response = await this.query(query);
++        if (!response.ok) {
++            throw new Error(response.statusText);
++        }
++
++        const responseData = (await response.json()) as AnalyticsQueryResult<{
++            path: string;
++            count: number;
++        }>;
++        const metrics: SeoFunnelMetrics = {
++            reportSubmits: 0,
++            reportSuccesses: 0,
++            reportErrors: { invalidUrl: 0, fetchFailed: 0 },
++            contentCtaClicks: [],
++        };
++
++        responseData.data.forEach(({ path, count }) => {
++            const value = Number(count);
++            switch (path) {
++                case "/events/report-submit":
++                    metrics.reportSubmits += value;
++                    break;
++                case "/events/report-success":
++                    metrics.reportSuccesses += value;
++                    break;
++                case "/events/report-error/invalid-url":
++                    metrics.reportErrors.invalidUrl += value;
++                    break;
++                case "/events/report-error/fetch-failed":
++                    metrics.reportErrors.fetchFailed += value;
++                    break;
++                default: {
++                    const ctaPrefix = "/events/content-cta/";
++                    const slug = path.slice(ctaPrefix.length);
++                    if (
++                        path.startsWith(ctaPrefix) &&
++                        seoContentSlugs.has(slug)
++                    ) {
++                        metrics.contentCtaClicks.push({
++                            slug,
++                            clicks: value,
++                        });
++                    }
++                }
++            }
++        });
++
++        return metrics;
++    }
++
      async getVisitorCountByColumn<T extends keyof typeof ColumnMappings>(
          siteId: string,
          column: T,
+@@ -420,6 +569,7 @@ export class AnalyticsEngineAPI {
+             WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
+                 AND ${ColumnMappings.newVisitor} = 1
+                 AND ${ColumnMappings.siteId} = '${siteId}'
++                AND ${ordinaryPageviewFilter}
+                 ${filterStr}
+             GROUP BY ${_column}
+             ORDER BY count DESC
+@@ -485,19 +635,20 @@ export class AnalyticsEngineAPI {
+             .format("YYYY-MM-DD HH:mm:ss");
+ 
+         const query = `
+-            SELECT 
++            SELECT
+                 timestamp,
+                 SUM(_sample_interval) as count,
+-                ${ColumnMappings.siteId} as siteId, 
+-                ${ColumnMappings.newVisitor} as isVisitor, 
++                ${ColumnMappings.siteId} as siteId,
++                ${ColumnMappings.newVisitor} as isVisitor,
+                 ${ColumnMappings.bounce} as isBounce,
+                 ${columnsStrWithAliases}
+             FROM metricsDataset
+             WHERE timestamp >= toDateTime('${startDateTimeSql}') AND timestamp < toDateTime('${endDateTimeSql}')
++                AND ${ordinaryPageviewFilter}
+             GROUP BY timestamp,
+-                ${ColumnMappings.siteId}, 
+-                ${ColumnMappings.newVisitor}, 
+-                ${ColumnMappings.bounce}, 
++                ${ColumnMappings.siteId},
++                ${ColumnMappings.newVisitor},
++                ${ColumnMappings.bounce},
+                 ${columnsStr}
+             ORDER BY count DESC
+         `;
+@@ -519,7 +670,6 @@ export class AnalyticsEngineAPI {
+             const responseData =
+                 (await response.json()) as AnalyticsQueryResult<SelectionSet>;
+ 
+-
+             return responseData.data.reduce((acc, row) => {
+                 // key is the comma joined string of siteId + all columns
+                 const key = [
+@@ -588,6 +738,7 @@ export class AnalyticsEngineAPI {
+             WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
+                 AND ${ColumnMappings.newVisitor} = 0
+                 AND ${ColumnMappings.siteId} = '${siteId}'
++                AND ${ordinaryPageviewFilter}
+                 ${filterStr}
+             GROUP BY ${_column}, ${ColumnMappings.newVisitor}
+             ORDER BY count DESC
+@@ -891,6 +1042,7 @@ export class AnalyticsEngineAPI {
+                 ${ColumnMappings.siteId} as siteId
+             FROM metricsDataset
+             WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
++                AND ${ordinaryPageviewFilter}
+             GROUP BY siteId
+             ORDER BY count DESC
+             LIMIT ${limit}
 diff --git a/packages/server/app/lib/analytics-origin.ts b/packages/server/app/lib/analytics-origin.ts
 new file mode 100644
 index 0000000..cad6f17
@@ -341,10 +594,10 @@ index 8372e34..c7dd043 100644
 +    });
  });
 diff --git a/packages/server/app/routes/__tests__/dashboard.test.tsx b/packages/server/app/routes/__tests__/dashboard.test.tsx
-index 5d56977..7fecad9 100644
+index 5d56977..f93c1ca 100644
 --- a/packages/server/app/routes/__tests__/dashboard.test.tsx
 +++ b/packages/server/app/routes/__tests__/dashboard.test.tsx
-@@ -242,6 +242,12 @@ describe("Dashboard route", () => {
+@@ -242,6 +242,28 @@ describe("Dashboard route", () => {
                              return { countsByProperty: [] };
                          },
                      },
@@ -354,18 +607,35 @@ index 5d56977..7fecad9 100644
 +                            return { playlistMeasurements: [] };
 +                        },
 +                    },
++                    {
++                        path: "/resources/seo-funnel",
++                        loader: () => {
++                            return {
++                                seoFunnel: {
++                                    reportSubmits: 0,
++                                    reportSuccesses: 0,
++                                    reportErrors: {
++                                        invalidUrl: 0,
++                                        fetchFailed: 0,
++                                    },
++                                    contentCtaClicks: [],
++                                },
++                            };
++                        },
++                    },
                      {
                          path: "/resources/referrer",
                          loader: () => {
-@@ -310,6 +316,7 @@ describe("Dashboard route", () => {
+@@ -310,6 +332,8 @@ describe("Dashboard route", () => {
  
          await waitFor(() => screen.findByText("Path"));
          expect(screen.getByText("Path")).toBeInTheDocument();
 +        expect(screen.getByText("Playlist Measurements")).toBeInTheDocument();
++        expect(screen.getByText("SEO Conversion Funnel")).toBeInTheDocument();
          expect(screen.getByText("Referrer")).toBeInTheDocument();
          expect(screen.getByText("Browser")).toBeInTheDocument();
          expect(screen.getByText("Country")).toBeInTheDocument();
-@@ -382,6 +389,19 @@ describe("Dashboard route", () => {
+@@ -382,6 +406,35 @@ describe("Dashboard route", () => {
                              };
                          },
                      },
@@ -379,6 +649,22 @@ index 5d56977..7fecad9 100644
 +                                        measurements: 12,
 +                                    },
 +                                ],
++                            };
++                        },
++                    },
++                    {
++                        path: "/resources/seo-funnel",
++                        loader: () => {
++                            return {
++                                seoFunnel: {
++                                    reportSubmits: 8,
++                                    reportSuccesses: 6,
++                                    reportErrors: {
++                                        invalidUrl: 1,
++                                        fetchFailed: 1,
++                                    },
++                                    contentCtaClicks: [],
++                                },
 +                            };
 +                        },
 +                    },
@@ -445,6 +731,89 @@ index 0000000..86bc735
 +        expect(screen.getByText("7")).toBeInTheDocument();
 +    });
 +});
+diff --git a/packages/server/app/routes/__tests__/resources.seo-funnel.test.tsx b/packages/server/app/routes/__tests__/resources.seo-funnel.test.tsx
+new file mode 100644
+index 0000000..9e0687d
+--- /dev/null
++++ b/packages/server/app/routes/__tests__/resources.seo-funnel.test.tsx
+@@ -0,0 +1,77 @@
++// @vitest-environment jsdom
++import { render, screen } from "@testing-library/react";
++import type { LoaderFunctionArgs } from "react-router";
++import { describe, expect, test, vi } from "vitest";
++import "vitest-dom/extend-expect";
++
++import { SeoFunnelSummary, loader } from "../resources.seo-funnel";
++import { createFetchResponse, getDefaultContext } from "./testutils";
++
++vi.mock("~/lib/auth", () => ({
++    requireAuth: vi.fn(),
++}));
++
++describe("Resources/SEO funnel route", () => {
++    test("returns aggregate conversion metrics from reserved events", async () => {
++        global.fetch = vi.fn().mockResolvedValue(
++            createFetchResponse({
++                data: [
++                    { path: "/events/report-submit", count: "8" },
++                    { path: "/events/report-success", count: "6" },
++                    {
++                        path: "/events/report-error/invalid-url",
++                        count: "1",
++                    },
++                    {
++                        path: "/events/content-cta/yt-playlist-report-vs-ytpla",
++                        count: "3",
++                    },
++                ],
++            }),
++        );
++
++        const response = await loader({
++            ...getDefaultContext(),
++            request: {
++                url: "http://localhost:3000/resources/seo-funnel?site=ytpr-production&interval=30d",
++            },
++        } as unknown as LoaderFunctionArgs);
++
++        expect(response.seoFunnel).toEqual({
++            reportSubmits: 8,
++            reportSuccesses: 6,
++            reportErrors: { invalidUrl: 1, fetchFailed: 0 },
++            contentCtaClicks: [
++                { slug: "yt-playlist-report-vs-ytpla", clicks: 3 },
++            ],
++        });
++    });
++
++    test("renders submits, success rate, categorized errors, and CTA slugs", () => {
++        render(
++            <SeoFunnelSummary
++                metrics={{
++                    reportSubmits: 8,
++                    reportSuccesses: 6,
++                    reportErrors: { invalidUrl: 1, fetchFailed: 1 },
++                    contentCtaClicks: [
++                        {
++                            slug: "yt-playlist-report-vs-ytpla",
++                            clicks: 3,
++                        },
++                    ],
++                }}
++            />,
++        );
++
++        expect(screen.getByText("8")).toBeInTheDocument();
++        expect(screen.getByText("6")).toBeInTheDocument();
++        expect(screen.getByText("75%")).toBeInTheDocument();
++        expect(screen.getByText("Invalid URL")).toBeInTheDocument();
++        expect(screen.getByText("Fetch failed")).toBeInTheDocument();
++        expect(
++            screen.getByText("yt-playlist-report-vs-ytpla"),
++        ).toBeInTheDocument();
++        expect(screen.getByText("3")).toBeInTheDocument();
++    });
++});
 diff --git a/packages/server/app/routes/cache.tsx b/packages/server/app/routes/cache.tsx
 index ed7ef55..8e32a58 100644
 --- a/packages/server/app/routes/cache.tsx
@@ -499,21 +868,31 @@ index 358af1e..a341eb4 100644
          request,
          context.cloudflare.env,
 diff --git a/packages/server/app/routes/dashboard.tsx b/packages/server/app/routes/dashboard.tsx
-index aa4fd94..ecabc14 100644
+index aa4fd94..691bb7f 100644
 --- a/packages/server/app/routes/dashboard.tsx
 +++ b/packages/server/app/routes/dashboard.tsx
-@@ -47,6 +47,7 @@ import SearchFilterBadges from "~/components/SearchFilterBadges";
+@@ -47,6 +47,8 @@ import SearchFilterBadges from "~/components/SearchFilterBadges";
  import { TimeSeriesCard } from "./resources.timeseries";
  import { StatsCard } from "./resources.stats";
  import { requireAuth } from "~/lib/auth";
 +import { PlaylistMeasurementsCard } from "./resources.playlist-measurements";
++import { SeoFunnelCard } from "./resources.seo-funnel";
  
  export const meta: MetaFunction = () => {
      return [
-@@ -251,6 +252,15 @@ export default function Dashboard() {
+@@ -251,6 +253,24 @@ export default function Dashboard() {
                          timezone={userTimezone}
                      />
                  </div>
++                <div className="w-full mb-4">
++                    <SeoFunnelCard
++                        key={`${data.siteId}:${data.interval}:${userTimezone}:${JSON.stringify(data.filters)}`}
++                        siteId={data.siteId}
++                        interval={data.interval}
++                        filters={data.filters}
++                        timezone={userTimezone}
++                    />
++                </div>
 +                <div className="w-full mb-4">
 +                    <PlaylistMeasurementsCard
 +                        key={`${data.siteId}:${data.interval}:${userTimezone}:${JSON.stringify(data.filters)}`}
@@ -648,6 +1027,148 @@ index 0000000..e8a15ae
 +        </Card>
 +    );
 +}
+diff --git a/packages/server/app/routes/resources.seo-funnel.tsx b/packages/server/app/routes/resources.seo-funnel.tsx
+new file mode 100644
+index 0000000..52e89eb
+--- /dev/null
++++ b/packages/server/app/routes/resources.seo-funnel.tsx
+@@ -0,0 +1,136 @@
++import { useEffect } from "react";
++import { useFetcher } from "react-router";
++import type { LoaderFunctionArgs } from "react-router";
++
++import type { SeoFunnelMetrics } from "~/analytics/query";
++import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
++import { requireAuth } from "~/lib/auth";
++import type { SearchFilters } from "~/lib/types";
++import { getFiltersFromSearchParams, paramsFromUrl } from "~/lib/utils";
++
++const emptyMetrics: SeoFunnelMetrics = {
++    reportSubmits: 0,
++    reportSuccesses: 0,
++    reportErrors: { invalidUrl: 0, fetchFailed: 0 },
++    contentCtaClicks: [],
++};
++
++export async function loader({ context, request }: LoaderFunctionArgs) {
++    await requireAuth(request, context.cloudflare.env);
++    const { analyticsEngine } = context;
++    const { interval, site } = paramsFromUrl(request.url);
++    const url = new URL(request.url);
++    const timezone = url.searchParams.get("timezone") || "UTC";
++    const filters = getFiltersFromSearchParams(url.searchParams);
++
++    return {
++        seoFunnel: await analyticsEngine.getSeoFunnelMetrics(
++            site,
++            interval,
++            timezone,
++            filters,
++        ),
++    };
++}
++
++export function SeoFunnelSummary({ metrics }: { metrics: SeoFunnelMetrics }) {
++    const completionRate = metrics.reportSubmits
++        ? `${Math.round((metrics.reportSuccesses / metrics.reportSubmits) * 100)}%`
++        : "—";
++
++    return (
++        <div className="space-y-6">
++            <dl className="grid gap-4 sm:grid-cols-3">
++                <div>
++                    <dt className="text-sm text-muted-foreground">Submits</dt>
++                    <dd className="text-3xl font-semibold">
++                        {metrics.reportSubmits}
++                    </dd>
++                </div>
++                <div>
++                    <dt className="text-sm text-muted-foreground">Successes</dt>
++                    <dd className="text-3xl font-semibold">
++                        {metrics.reportSuccesses}
++                    </dd>
++                </div>
++                <div>
++                    <dt className="text-sm text-muted-foreground">
++                        Completion rate
++                    </dt>
++                    <dd className="text-3xl font-semibold">{completionRate}</dd>
++                </div>
++            </dl>
++
++            <div className="grid gap-4 sm:grid-cols-2">
++                <div className="rounded border p-3">
++                    <div className="text-sm text-muted-foreground">
++                        Invalid URL
++                    </div>
++                    <div className="text-2xl font-semibold">
++                        {metrics.reportErrors.invalidUrl}
++                    </div>
++                </div>
++                <div className="rounded border p-3">
++                    <div className="text-sm text-muted-foreground">
++                        Fetch failed
++                    </div>
++                    <div className="text-2xl font-semibold">
++                        {metrics.reportErrors.fetchFailed}
++                    </div>
++                </div>
++            </div>
++
++            <table className="w-full text-sm">
++                <thead>
++                    <tr className="border-b text-left">
++                        <th className="pb-2 font-medium">Content CTA</th>
++                        <th className="pb-2 text-right font-medium">Clicks</th>
++                    </tr>
++                </thead>
++                <tbody>
++                    {metrics.contentCtaClicks.map(({ slug, clicks }) => (
++                        <tr key={slug} className="border-b last:border-0">
++                            <td className="py-2 pr-4">{slug}</td>
++                            <td className="py-2 text-right">{clicks}</td>
++                        </tr>
++                    ))}
++                </tbody>
++            </table>
++        </div>
++    );
++}
++
++export function SeoFunnelCard({
++    siteId,
++    interval,
++    filters,
++    timezone,
++}: {
++    siteId: string;
++    interval: string;
++    filters: SearchFilters;
++    timezone: string;
++}) {
++    const dataFetcher = useFetcher<typeof loader>();
++    const metrics = dataFetcher.data?.seoFunnel || emptyMetrics;
++
++    useEffect(() => {
++        dataFetcher.submit(
++            { site: siteId, interval, timezone, ...filters },
++            { method: "get", action: "/resources/seo-funnel" },
++        );
++        // dataFetcher is intentionally stable and omitted from dependencies.
++        // eslint-disable-next-line react-hooks/exhaustive-deps
++    }, [siteId, interval, filters, timezone]);
++
++    return (
++        <Card className={dataFetcher.state === "loading" ? "opacity-60" : ""}>
++            <CardHeader>
++                <CardTitle>SEO Conversion Funnel</CardTitle>
++            </CardHeader>
++            <CardContent>
++                <SeoFunnelSummary metrics={metrics} />
++            </CardContent>
++        </Card>
++    );
++}
 diff --git a/packages/server/worker-configuration.d.ts b/packages/server/worker-configuration.d.ts
 index 3d59e31..3cad15f 100644
 --- a/packages/server/worker-configuration.d.ts
@@ -737,4 +1258,3 @@ index 435959b..4ee79fc 100644
 -    }
 +    ]
  }
-

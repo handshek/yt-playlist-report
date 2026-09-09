@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import {
   COMPARISON_HUB_PATH,
@@ -8,8 +8,18 @@ import {
 } from "@/content/comparisons";
 import Compare from "./Compare";
 import CompareIndex from "./CompareIndex";
+import { trackSeoEvent } from "@/lib/seo-events";
 
-afterEach(cleanup);
+vi.mock("@/lib/seo-events", () => ({
+  isSeoContentSlug: (slug: string) =>
+    slug === "yt-playlist-report-vs-ytpla",
+  trackSeoEvent: vi.fn(),
+}));
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("comparison pages", () => {
   it("presents all five alternatives and recommends YT Playlist Report on the hub", async () => {
@@ -61,6 +71,30 @@ describe("comparison pages", () => {
         .getAllByTestId("related-comparison")
         .every((link) => link.getAttribute("href")?.endsWith("/"))
     ).toBe(true);
+  });
+
+  it("attributes a comparison CTA using only its known content slug", async () => {
+    const comparison = comparisons[0];
+    const router = createMemoryRouter(
+      [
+        { path: "/", element: <div>Home</div> },
+        { path: "/compare/:comparisonSlug", element: <Compare /> },
+      ],
+      { initialEntries: [comparisonPath(comparison)] }
+    );
+
+    render(<RouterProvider router={router} />);
+
+    const ctas = await screen.findAllByRole("link", {
+      name: /analyze a playlist free/i,
+    });
+    fireEvent.click(ctas[0]);
+
+    expect(trackSeoEvent).toHaveBeenCalledWith({
+      name: "content_cta_click",
+      slug: comparison.slug,
+    });
+    expect(trackSeoEvent).toHaveBeenCalledTimes(1);
   });
 
   it("returns a normal not-found response for an unknown comparison", async () => {
