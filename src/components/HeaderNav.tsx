@@ -1,8 +1,43 @@
 import { githubIcon, logoIcon } from "@/assets";
 import { Button } from "./ui/button";
 import { StarIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const HeaderNav = () => {
+  const [githubStars, setGithubStars] = useState<number | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadGithubStars = async () => {
+      try {
+        const response = await fetch("/api/github-stars", {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as { count?: unknown };
+
+        if (
+          typeof payload.count === "number" &&
+          Number.isInteger(payload.count) &&
+          payload.count >= 0
+        ) {
+          setGithubStars(payload.count);
+        }
+      } catch {
+        // The GitHub link remains usable when the optional count is unavailable.
+      }
+    };
+
+    void loadGithubStars();
+
+    return () => controller.abort();
+  }, []);
+
   return (
     <header className="w-full backdrop-blur-lg bg-red-100/5 border-b py-2 md:py-2.5 sticky top-0 left-0 z-10">
       <div className="container flex justify-between items-center">
@@ -26,7 +61,9 @@ const HeaderNav = () => {
             >
               <span className="border-l p-2 flex gap-1 items-center">
                 <StarIcon className="w-4 h-4  stroke-yellow-400 fill-yellow-400" />
-                <span className="font-semibold">8</span>
+                {githubStars !== null ? (
+                  <span className="font-semibold">{githubStars}</span>
+                ) : null}
               </span>
               <span className="px-1 md:p-2 flex flex-row-reverse items-center gap-1">
                 Star on GitHub

@@ -7,6 +7,11 @@ publish = "build/client"
 pretty_urls = true
 
 [[redirects]]
+from = "/api/github-stars"
+to = "/.netlify/functions/github-stars"
+status = 200
+
+[[redirects]]
 from = "/playlist/*"
 to = "/__spa-fallback.html"
 status = 200
