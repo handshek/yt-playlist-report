@@ -17,6 +17,8 @@ import { queryClient } from "@/lib/query-client";
 import "./index.css";
 
 export const links: LinksFunction = () => [
+  { rel: "icon", href: "/favicon-48.png", type: "image/png", sizes: "48x48" },
+  { rel: "icon", href: "/favicon-96.png", type: "image/png", sizes: "96x96" },
   { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
