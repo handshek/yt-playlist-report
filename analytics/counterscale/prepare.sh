@@ -11,6 +11,8 @@ checkout_dir="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 patch_file="${script_dir}/counterscale-v3.4.1.patch"
 
+node "${script_dir}/verify-seo-content-slugs.mjs"
+
 if [[ -e "${checkout_dir}" ]]; then
     echo "Refusing to overwrite existing path: ${checkout_dir}" >&2
     exit 1

@@ -9,7 +9,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview --outDir build/client",
     "test": "vitest run",
-    "test:seo": "pnpm build && node scripts/verify-seo-build.mjs"
+    "test:seo": "pnpm build && node scripts/verify-seo-build.mjs && node analytics/counterscale/verify-seo-content-slugs.mjs"
   },
   "dependencies": {
     "@counterscale/tracker": "3.4.1",
