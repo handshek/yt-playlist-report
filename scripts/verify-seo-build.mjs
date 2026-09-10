@@ -41,9 +41,27 @@ assert(
   "Homepage must contain the stable playlist calculator H1"
 );
 assert(
+  homepage.includes("See total duration, adjust playback speed, and explore every video."),
+  "Homepage must contain stable server-rendered supporting copy"
+);
+assert(homepage.includes('type="image/avif"'), "Homepage must offer an AVIF hero source");
+assert(homepage.includes('type="image/webp"'), "Homepage must offer a WebP hero source");
+assert(/fetchpriority="high"/i.test(homepage), "Homepage must prioritize its hero image");
+assert(!homepage.includes("fonts.googleapis.com"), "Homepage must not load Google Fonts CSS");
+assert(!homepage.includes("fonts.gstatic.com"), "Homepage must not connect to Google Fonts assets");
+assert(
   canonicalUrl(homepage) === `${SITE_URL}/`,
   "Homepage must include its canonical URL"
 );
+const homepageWebSite = structuredData(homepage).find(
+  (data) => data["@type"] === "WebSite"
+);
+assert(homepageWebSite, "Homepage must include WebSite JSON-LD");
+assert(homepageWebSite.name === "YT Playlist Report", "WebSite JSON-LD must use the visible product name");
+assert(homepageWebSite.alternateName === "YTPR", "WebSite JSON-LD must include the product abbreviation");
+assert(homepageWebSite.url === `${SITE_URL}/`, "WebSite JSON-LD must use the canonical homepage URL");
+assert(homepage.includes('href="/favicon-48.png" type="image/png" sizes="48x48"'), "Homepage must declare a 48px favicon");
+assert(homepage.includes('href="/favicon-96.png" type="image/png" sizes="96x96"'), "Homepage must declare a 96px favicon");
 
 const hub = readOutput("compare", "index.html");
 assert(hub.match(/<h1/g)?.length === 1, "Comparison hub must have exactly one H1");

@@ -1,18 +1,10 @@
 import { Link } from "react-router";
 import Form from "./Form";
 import { Button } from "./ui/button";
-import { FlipWords } from "./ui/flip-words";
-import { ytprDemo } from "@/assets";
+import { ytprDemo, ytprDemoSources } from "@/assets";
 import { Presentation } from "lucide-react";
 
 const Hero = () => {
-  const strings = [
-    "Get a Full Breakdown",
-    "View the Total Duration",
-    "Find the most viewed Video",
-    "Scan to Share the Report",
-  ];
-
   return (
     <section className="py-28">
       <div>
@@ -20,20 +12,36 @@ const Hero = () => {
           Free YouTube Playlist Length Calculator &amp; Analyzer
         </h1>
         <p className="mx-auto -mt-5 min-h-10 max-w-2xl text-center text-lg font-semibold text-neutral-600 md:text-2xl">
-          <FlipWords words={strings} className="px-0 text-center text-red-700" />
+          See total duration, adjust playback speed, and explore every video.
         </p>
       </div>
       <Form />
       <div className="mt-16">
         <div className="flex max-w-5xl justify-center mx-auto overflow-clip relative aspect-[16/9] w-full">
-          <img
-            src={ytprDemo}
-            alt="hero-section"
-            className="h-full w-full rounded-xl object-cover md:w-[1300px] border-8 border-slate-200 block"
-            style={{
-              maskImage: `linear-gradient(to top, transparent, black 20%)`,
-            }}
-          />
+          <picture className="block h-full w-full">
+            <source
+              type="image/avif"
+              srcSet={ytprDemoSources.avif}
+              sizes="(min-width: 1280px) 1024px, (min-width: 1024px) calc(100vw - 14rem), (min-width: 768px) calc(100vw - 8rem), calc(100vw - 4rem)"
+            />
+            <source
+              type="image/webp"
+              srcSet={ytprDemoSources.webp}
+              sizes="(min-width: 1280px) 1024px, (min-width: 1024px) calc(100vw - 14rem), (min-width: 768px) calc(100vw - 8rem), calc(100vw - 4rem)"
+            />
+            <img
+              src={ytprDemo}
+              width={1920}
+              height={1080}
+              alt="YT Playlist Report showing playlist duration, statistics, and video details"
+              decoding="async"
+              fetchPriority="high"
+              className="block h-full w-full rounded-xl border-8 border-slate-200 object-cover md:w-[1300px]"
+              style={{
+                maskImage: `linear-gradient(to top, transparent, black 20%)`,
+              }}
+            />
+          </picture>
           <Button
             className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-red-600 hover:bg-red-800"
             size={"lg"}
