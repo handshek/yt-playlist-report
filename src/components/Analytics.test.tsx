@@ -22,6 +22,7 @@ const routes: RouteObject[] = [
       { path: "/", element: <div>Home</div> },
       { path: "/compare/:comparisonSlug", element: <div>Comparison</div> },
       { path: "/playlist/:playlistId", element: <div>Report</div> },
+      { path: "/events/*", element: <div>Reserved event</div> },
     ],
   },
 ];
@@ -82,6 +83,17 @@ describe("Analytics", () => {
         url: path,
       });
     });
+  });
+
+  it("does not count reserved event paths as ordinary pageviews", async () => {
+    const router = createMemoryRouter(routes, {
+      initialEntries: ["/events/report-success"],
+    });
+
+    render(<RouterProvider router={router} />);
+
+    expect(await screen.findByText("Reserved event")).toBeTruthy();
+    expect(Counterscale.trackPageview).not.toHaveBeenCalled();
   });
 
   it("stays disabled when public analytics configuration is missing", async () => {

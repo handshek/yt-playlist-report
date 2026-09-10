@@ -6,6 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { fetchPlaylistDetails } from "@/api/PlaylistApi";
 import { Loader, ScrollText } from "lucide-react";
 import { toast } from "sonner";
+import { trackSeoEvent } from "@/lib/seo-events";
 
 const Form = () => {
   const [url, setUrl] = useState("");
@@ -15,9 +16,11 @@ const Form = () => {
   const playlistMutation = useMutation({
     mutationFn: fetchPlaylistDetails,
     onSuccess: (data) => {
+      trackSeoEvent({ name: "report_success" });
       navigate(`playlist/${data.id}`, { state: { playlistDetails: data } });
     },
     onError: (error) => {
+      trackSeoEvent({ name: "report_error", reason: "fetch_failed" });
       setUrl("");
       toast.error("Error generating report", {
         description: "Make sure the playlist exists and is public",
@@ -37,6 +40,7 @@ const Form = () => {
     try {
       playlistId = new URL(url).searchParams.get("list");
     } catch (error) {
+      trackSeoEvent({ name: "report_error", reason: "invalid_url" });
       toast.error("Invalid playlist URL", {
         description: "Please enter a valid playlist URL",
         richColors: true,
@@ -45,6 +49,7 @@ const Form = () => {
     }
 
     if (!url.length || !playlistId) {
+      trackSeoEvent({ name: "report_error", reason: "invalid_url" });
       setUrl("");
       toast.error("Invalid playlist URL", {
         description: "Please enter a valid playlist URL",
@@ -53,6 +58,7 @@ const Form = () => {
       return;
     }
 
+    trackSeoEvent({ name: "report_submit" });
     playlistMutation.mutate(playlistId);
   }
 

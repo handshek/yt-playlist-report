@@ -9,6 +9,7 @@ import {
   comparisons,
 } from "@/content/comparisons";
 import { pageMeta, SITE_NAME, SITE_URL } from "@/lib/site";
+import { isSeoContentSlug, trackSeoEvent } from "@/lib/seo-events";
 
 export const getCompareMeta = (comparisonSlug = "") => {
   const comparison = comparisonBySlug.get(comparisonSlug);
@@ -66,6 +67,11 @@ const Compare = () => {
     comparisons[(currentIndex + 1) % comparisons.length],
     comparisons[(currentIndex + 2) % comparisons.length],
   ];
+  const trackCtaClick = () => {
+    if (isSeoContentSlug(comparison.slug)) {
+      trackSeoEvent({ name: "content_cta_click", slug: comparison.slug });
+    }
+  };
   const canonical = `${SITE_URL}${comparisonPath(comparison)}`;
   const structuredData = [
     {
@@ -134,6 +140,7 @@ const Compare = () => {
               </div>
               <Link
                 to="/"
+                onClick={trackCtaClick}
                 className="mt-8 inline-flex items-center gap-2 rounded-md bg-red-600 px-5 py-3 font-bold text-white transition-colors hover:bg-red-800"
               >
                 Analyze a playlist free <ArrowRight className="size-4" />
@@ -277,7 +284,7 @@ const Compare = () => {
               <h2 className="mt-3 max-w-2xl text-3xl font-black md:text-4xl">
                 Turn any supported public playlist into a detailed report.
               </h2>
-              <Link to="/" className="mt-7 inline-flex items-center gap-2 rounded-md bg-red-600 px-5 py-3 font-bold text-white transition-colors hover:bg-red-700">
+              <Link to="/" onClick={trackCtaClick} className="mt-7 inline-flex items-center gap-2 rounded-md bg-red-600 px-5 py-3 font-bold text-white transition-colors hover:bg-red-700">
                 Analyze a playlist free <ArrowRight className="size-4" />
               </Link>
             </section>
