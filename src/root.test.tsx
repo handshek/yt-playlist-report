@@ -3,6 +3,15 @@ import { describe, expect, it } from "vitest";
 import { HydrateFallback, links } from "./root";
 
 describe("root route", () => {
+  it("does not connect to third-party font hosts during startup", () => {
+    const hrefs = links().map((link) =>
+      "href" in link && typeof link.href === "string" ? link.href : ""
+    );
+
+    expect(hrefs.some((href) => href.includes("fonts.googleapis.com"))).toBe(false);
+    expect(hrefs.some((href) => href.includes("fonts.gstatic.com"))).toBe(false);
+  });
+
   it("declares crawlable favicon sizes with an ICO fallback", () => {
     expect(links()).toEqual(
       expect.arrayContaining([

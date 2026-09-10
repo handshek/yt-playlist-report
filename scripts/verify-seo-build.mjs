@@ -41,6 +41,15 @@ assert(
   "Homepage must contain the stable playlist calculator H1"
 );
 assert(
+  homepage.includes("See total duration, adjust playback speed, and explore every video."),
+  "Homepage must contain stable server-rendered supporting copy"
+);
+assert(homepage.includes('type="image/avif"'), "Homepage must offer an AVIF hero source");
+assert(homepage.includes('type="image/webp"'), "Homepage must offer a WebP hero source");
+assert(/fetchpriority="high"/i.test(homepage), "Homepage must prioritize its hero image");
+assert(!homepage.includes("fonts.googleapis.com"), "Homepage must not load Google Fonts CSS");
+assert(!homepage.includes("fonts.gstatic.com"), "Homepage must not connect to Google Fonts assets");
+assert(
   canonicalUrl(homepage) === `${SITE_URL}/`,
   "Homepage must include its canonical URL"
 );
