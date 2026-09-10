@@ -22,12 +22,12 @@ const Hero = () => {
             <source
               type="image/avif"
               srcSet={ytprDemoSources.avif}
-              sizes="(min-width: 1280px) 1024px, (min-width: 768px) calc(100vw - 16rem), calc(100vw - 4rem)"
+              sizes="(min-width: 1280px) 1024px, (min-width: 1024px) calc(100vw - 14rem), (min-width: 768px) calc(100vw - 8rem), calc(100vw - 4rem)"
             />
             <source
               type="image/webp"
               srcSet={ytprDemoSources.webp}
-              sizes="(min-width: 1280px) 1024px, (min-width: 768px) calc(100vw - 16rem), calc(100vw - 4rem)"
+              sizes="(min-width: 1280px) 1024px, (min-width: 1024px) calc(100vw - 14rem), (min-width: 768px) calc(100vw - 8rem), calc(100vw - 4rem)"
             />
             <img
               src={ytprDemo}

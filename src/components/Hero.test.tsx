@@ -52,6 +52,9 @@ describe("Hero", () => {
     ]);
     expect(sources.every((source) => source.getAttribute("srcset")?.includes("640w"))).toBe(true);
     expect(sources.every((source) => source.getAttribute("srcset")?.includes("1920w"))).toBe(true);
-    expect(sources.every((source) => source.hasAttribute("sizes"))).toBe(true);
+    expect(sources.map((source) => source.getAttribute("sizes"))).toEqual([
+      "(min-width: 1280px) 1024px, (min-width: 1024px) calc(100vw - 14rem), (min-width: 768px) calc(100vw - 8rem), calc(100vw - 4rem)",
+      "(min-width: 1280px) 1024px, (min-width: 1024px) calc(100vw - 14rem), (min-width: 768px) calc(100vw - 8rem), calc(100vw - 4rem)",
+    ]);
   });
 });
