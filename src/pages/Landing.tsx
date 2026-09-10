@@ -6,7 +6,8 @@ import { useRef } from "react";
 import HeaderNav from "@/components/HeaderNav";
 import Footer from "@/components/Footer";
 import type { MetaFunction } from "react-router";
-import { pageMeta } from "@/lib/site";
+import JsonLd from "@/components/JsonLd";
+import { pageMeta, SITE_NAME, SITE_URL } from "@/lib/site";
 
 export const getLandingMeta = () =>
   pageMeta({
@@ -27,6 +28,15 @@ function Landing() {
 
   return (
     <>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: SITE_NAME,
+          alternateName: "YTPR",
+          url: `${SITE_URL}/`,
+        }}
+      />
       <div className="absolute inset-0 -z-10 w-full bg-white bg-[radial-gradient(red_0.1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]"></div>
       <HeaderNav />
       <main className="container grid place-content-center md:px-16 lg:px-28">
