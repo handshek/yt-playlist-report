@@ -32,11 +32,12 @@ Generate comprehensive reports for YouTube playlists. Get insights on total dura
 
 1. Clone the repository
 2. Install dependencies: `pnpm install`
-3. Copy `.env.example` to `.env.local` and add your YouTube API key:
+3. Copy `.env.example` to `.env.local`, then add your YouTube API key and Ko-fi page ID:
    ```
    VITE_YT_API_KEY=your_api_key_here
+   VITE_KOFI_PAGE_ID=yourusername
    ```
-4. Run the development server: `npm run dev`
+4. Run the development server: `pnpm dev`
 5. Open `http://localhost:5001` in your browser
 
 ## 📈 Self-hosted analytics with Counterscale
@@ -61,6 +62,21 @@ works without it. Successful responses are cached for 24 hours and may remain
 stale for one additional hour while the cache refreshes in the background.
 
 Normal navigation is recorded as a pageview. A playlist path such as `/playlist/PLabc123` is recorded only after its complete report loads successfully, once per completed report view. Analytics failures never block report generation.
+
+## ☕ Ko-fi support panel
+
+The landing and successful report routes show a custom YTPR launcher for the
+official Ko-fi tip panel. Ko-fi is loaded in an iframe only after the launcher
+is opened. The embedded panel uses Ko-fi's account-controlled amount field; it
+does not expose the `$5 / $15 / $25` preset buttons shown on the hosted page.
+If the panel is blocked or times out, visitors can retry or open the hosted
+Ko-fi page in a new tab.
+
+Counterscale records one `/support/ko-fi/widget` exposure and the first
+`/support/ko-fi/open` per eligible route view. Hosted fallback clicks use
+`/outbound/ko-fi`. These synthetic paths include only `landing` or `report` as
+their source and never include playlist IDs. Completed payments remain visible
+in Ko-fi.
 
 The versioned [Counterscale patch](analytics/counterscale/counterscale-v3.4.1.patch) adds the playlist leaderboard, exact-origin ingestion controls, bot suppression, and removes the R2 binding and archive cron.
 

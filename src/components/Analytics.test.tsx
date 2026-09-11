@@ -66,7 +66,9 @@ describe("Analytics", () => {
     render(<RouterProvider router={router} />);
 
     await waitFor(() => {
-      expect(Counterscale.trackPageview).not.toHaveBeenCalled();
+      expect(Counterscale.trackPageview).not.toHaveBeenCalledWith({
+        url: "/playlist/PLabc_123",
+      });
     });
   });
 
@@ -118,5 +120,28 @@ describe("Analytics", () => {
 
     expect(await screen.findByText("Home")).toBeTruthy();
     expect(Counterscale.trackPageview).not.toHaveBeenCalled();
+  });
+
+  it("renders Ko-fi support only on landing and report routes", async () => {
+    vi.stubEnv("VITE_KOFI_PAGE_ID", "handshek");
+    const router = createMemoryRouter(routes, { initialEntries: ["/"] });
+
+    render(<RouterProvider router={router} />);
+
+    expect(
+      await screen.findByRole("button", { name: "Support YTPR on Ko-fi" })
+    ).toBeTruthy();
+
+    await router.navigate(comparisonPath(comparisons[0]));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Support YTPR on Ko-fi" })
+      ).toBeNull();
+    });
+
+    await router.navigate("/playlist/PLabc_123");
+    expect(
+      await screen.findByRole("button", { name: "Support YTPR on Ko-fi" })
+    ).toBeTruthy();
   });
 });

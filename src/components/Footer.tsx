@@ -82,7 +82,7 @@ const Footer = () => {
       </div>
 
       <div className="border-t border-neutral-800">
-        <div className="container flex flex-col gap-4 py-6 text-sm text-neutral-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="container flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 text-sm text-neutral-500 sm:flex-row sm:items-center sm:justify-between sm:pb-6 sm:pr-52">
           <p>Made with React ⚛ and love ❤</p>
           <div className="flex items-center gap-4">
             <a href="https://github.com/buneeIsSlo" target="_blank" rel="noopener noreferrer" aria-label="GitHub">

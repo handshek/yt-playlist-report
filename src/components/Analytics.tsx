@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router";
 import { trackPageview } from "@/lib/counterscale";
+import KofiSupportModal from "@/components/KofiSupportModal";
 
 const PLAYLIST_REPORT_PATH = /^\/playlist\/[^/]+\/?$/;
 const RESERVED_EVENT_PATH = /^\/events(?:\/|$)/;
@@ -19,7 +20,12 @@ const Analytics = () => {
     trackPageview(`${location.pathname}${location.search}`);
   }, [location.pathname, location.search]);
 
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      <KofiSupportModal />
+    </>
+  );
 };
 
 export default Analytics;
