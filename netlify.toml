@@ -23,6 +23,17 @@ window_size = 60
 aggregate_by = ["ip", "domain"]
 
 [[redirects]]
+from = "/api/feedback"
+to = "/.netlify/functions/feedback"
+status = 200
+
+# Feedback has a lower volume and a stricter free-tier abuse ceiling.
+[redirects.rate_limit]
+window_limit = 10
+window_size = 3600
+aggregate_by = ["ip", "domain"]
+
+[[redirects]]
 from = "/playlist/*"
 to = "/__spa-fallback.html"
 status = 200

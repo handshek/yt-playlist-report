@@ -24,12 +24,12 @@ import {
 import { Zap, History, Clock, Film, ExternalLink } from "lucide-react";
 import Footer from "@/components/Footer";
 import { Skeleton } from "@/components/ui/skeleton";
-import PlaylistMeasurement from "@/components/PlaylistMeasurement";
 import { logoIcon } from "@/assets";
 import QRCode from "react-qr-code";
 import { queryClient } from "@/lib/query-client";
 import { loader as playlistLoader } from "@/api/PlaylistApi";
 import { pageMeta } from "@/lib/site";
+import ReportFeedback from "@/components/ReportFeedback";
 
 export const getReportMeta = (playlistId = "playlist") =>
   pageMeta({
@@ -82,7 +82,6 @@ const PlaylistDuration: React.FC = () => {
 
   return (
     <>
-      <PlaylistMeasurement playlistId={playlistId!} />
       <div className="mx-auto">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 py-10 md:py-14">
           <div className="bg-neutral-50 border p-4 rounded-xl flex flex-col justify-between">
@@ -243,7 +242,10 @@ const Report: React.FC = () => {
               resolve={videoDetails}
               errorElement={<div>Error loading playlist details</div>}
             >
-              <PlaylistDuration />
+              <>
+                <PlaylistDuration />
+                <ReportFeedback />
+              </>
             </Await>
           </Suspense>
         </div>

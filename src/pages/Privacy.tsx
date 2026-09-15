@@ -40,6 +40,15 @@ const Privacy = () => (
       </p>
     </section>
     <section>
+      <h2>Optional feedback</h2>
+      <p className="mt-3">
+        If you choose to send product feedback, the service stores your fixed
+        answers and optional note through Netlify Forms. Feedback does not
+        include a playlist URL or identifier. It is used only to improve the
+        product and is reviewed and deleted within 90 days.
+      </p>
+    </section>
+    <section>
       <h2>Optional support</h2>
       <p className="mt-3">
         If you open the Ko-fi support panel, Ko-fi processes that interaction

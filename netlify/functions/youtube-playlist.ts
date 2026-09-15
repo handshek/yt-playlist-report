@@ -1,25 +1,19 @@
+import {
+  errorResponse,
+  handleWebRequest,
+  headerValue,
+  isAllowedOrigin,
+  jsonResponse,
+  preflightResponse,
+  type FunctionRequest,
+  type FunctionResponse,
+} from "./shared/http";
+
 const YOUTUBE_API_BASE_URL = "https://www.googleapis.com/youtube/v3";
-const PRODUCTION_ORIGIN = "https://ytpr.netlify.app";
-const LOCAL_ORIGINS = new Set([
-  "http://127.0.0.1:5001",
-  "http://localhost:5001",
-]);
 const PLAYLIST_ID_PATTERN = /^[A-Za-z0-9_-]{10,150}$/;
 const UPSTREAM_TIMEOUT_MS = 10_000;
 
 type PlaylistResource = "details" | "report";
-
-export interface FunctionRequest {
-  httpMethod?: string;
-  headers?: Record<string, string | undefined>;
-  body?: string | null;
-}
-
-export interface FunctionResponse {
-  statusCode: number;
-  headers: Record<string, string>;
-  body: string;
-}
 
 interface RequestBody {
   playlistId: string;
@@ -40,55 +34,6 @@ export const config = {
     aggregateBy: ["ip", "domain"],
   },
 } as const;
-
-const headerValue = (
-  headers: FunctionRequest["headers"],
-  requestedName: string
-) => {
-  const match = Object.entries(headers ?? {}).find(
-    ([name]) => name.toLowerCase() === requestedName.toLowerCase()
-  );
-  return match?.[1];
-};
-
-const isAllowedOrigin = (origin: string | undefined) => {
-  if (!origin) {
-    return false;
-  }
-
-  if (origin === PRODUCTION_ORIGIN || LOCAL_ORIGINS.has(origin)) {
-    return true;
-  }
-
-  return /^https:\/\/deploy-preview-\d+--ytpr\.netlify\.app$/.test(origin);
-};
-
-const responseHeaders = (origin?: string) => ({
-  "Content-Type": "application/json; charset=utf-8",
-  "Cache-Control": "no-store",
-  Vary: "Origin",
-  ...(origin && isAllowedOrigin(origin)
-    ? { "Access-Control-Allow-Origin": origin }
-    : {}),
-});
-
-const jsonResponse = (
-  statusCode: number,
-  body: unknown,
-  origin?: string,
-  extraHeaders: Record<string, string> = {}
-): FunctionResponse => ({
-  statusCode,
-  headers: { ...responseHeaders(origin), ...extraHeaders },
-  body: JSON.stringify(body),
-});
-
-const errorResponse = (
-  statusCode: number,
-  error: string,
-  origin?: string,
-  extraHeaders: Record<string, string> = {}
-) => jsonResponse(statusCode, { error }, origin, extraHeaders);
 
 const parseRequestBody = (body: string | null | undefined): RequestBody | null => {
   if (!body || body.length > 1_024) {
@@ -333,15 +278,7 @@ export async function handleYoutubePlaylistRequest(
       return errorResponse(403, "forbidden");
     }
 
-    return {
-      statusCode: 204,
-      headers: {
-        ...responseHeaders(origin),
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-      },
-      body: "",
-    };
+    return preflightResponse(origin);
   }
 
   if (request.httpMethod !== "POST") {
@@ -384,16 +321,6 @@ export async function handleYoutubePlaylistRequest(
   }
 }
 
-// Netlify requires the web-standard default export for path and rate-limit config.
-export default async function netlifyHandler(request: Request) {
-  const result = await handleYoutubePlaylistRequest({
-    httpMethod: request.method,
-    headers: Object.fromEntries(request.headers.entries()),
-    body: await request.text(),
-  });
-
-  return new Response(result.body || null, {
-    status: result.statusCode,
-    headers: result.headers,
-  });
-}
+// The default export activates Netlify's path and rate-limit configuration.
+export default (request: Request) =>
+  handleWebRequest(request, handleYoutubePlaylistRequest);
