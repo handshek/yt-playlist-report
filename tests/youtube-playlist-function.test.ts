@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import netlifyHandler, {
   config,
-  handler,
+  handleYoutubePlaylistRequest as handler,
 } from "../netlify/functions/youtube-playlist";
 
 const allowedRequest = (body: unknown) => ({

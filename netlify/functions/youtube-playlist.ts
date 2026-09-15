@@ -322,7 +322,7 @@ const fetchPlaylistReport = async (playlistId: string, apiKey: string) => {
   };
 };
 
-export async function handler(
+export async function handleYoutubePlaylistRequest(
   request: FunctionRequest = {}
 ): Promise<FunctionResponse> {
   const origin = headerValue(request.headers, "origin");
@@ -385,7 +385,7 @@ export async function handler(
 
 // Netlify requires the web-standard default export for path and rate-limit config.
 export default async function netlifyHandler(request: Request) {
-  const result = await handler({
+  const result = await handleYoutubePlaylistRequest({
     httpMethod: request.method,
     headers: Object.fromEntries(request.headers.entries()),
     body: await request.text(),

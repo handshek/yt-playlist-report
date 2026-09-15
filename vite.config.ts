@@ -2,7 +2,7 @@ import path from "path"
 import { reactRouter } from "@react-router/dev/vite"
 import { defineConfig, loadEnv, type Plugin } from "vite"
 import { handler } from "./netlify/functions/github-stars"
-import { handler as youtubePlaylistHandler } from "./netlify/functions/youtube-playlist"
+import { handleYoutubePlaylistRequest as youtubePlaylistHandler } from "./netlify/functions/youtube-playlist"
 
 const readRequestBody = (request: import("node:http").IncomingMessage) =>
   new Promise<string>((resolve, reject) => {
