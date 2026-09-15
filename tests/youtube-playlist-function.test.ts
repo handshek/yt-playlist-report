@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { config, handler } from "../netlify/functions/youtube-playlist";
+import netlifyHandler, {
+  config,
+  handler,
+} from "../netlify/functions/youtube-playlist";
 
 const allowedRequest = (body: unknown) => ({
   httpMethod: "POST",
@@ -29,6 +32,20 @@ describe("YouTube playlist API", () => {
         aggregateBy: ["ip", "domain"],
       },
     });
+  });
+
+  it("exposes a web-standard handler so Netlify applies the route config", async () => {
+    const response = await netlifyHandler(
+      new Request("https://ytpr.netlify.app/api/youtube-playlist", {
+        method: "OPTIONS",
+        headers: { Origin: "https://ytpr.netlify.app" },
+      })
+    );
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://ytpr.netlify.app"
+    );
   });
 
   it("rejects disallowed browser origins before calling YouTube", async () => {

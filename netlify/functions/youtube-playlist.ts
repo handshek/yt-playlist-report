@@ -382,3 +382,17 @@ export async function handler(
     return errorResponse(502, "upstream_unavailable", origin);
   }
 }
+
+// Netlify requires the web-standard default export for path and rate-limit config.
+export default async function netlifyHandler(request: Request) {
+  const result = await handler({
+    httpMethod: request.method,
+    headers: Object.fromEntries(request.headers.entries()),
+    body: await request.text(),
+  });
+
+  return new Response(result.body || null, {
+    status: result.statusCode,
+    headers: result.headers,
+  });
+}
