@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { config, handler } from "./youtube-playlist";
+import { config, handler } from "../netlify/functions/youtube-playlist";
 
 const allowedRequest = (body: unknown) => ({
   httpMethod: "POST",
