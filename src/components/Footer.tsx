@@ -57,6 +57,21 @@ const Footer = () => {
             </h2>
             <ul className="mt-5 space-y-3">
               <li>
+                <Link to="/about/" className="text-neutral-400 hover:text-white">
+                  About
+                </Link>
+              </li>
+              <li>
+                <Link to="/privacy/" className="text-neutral-400 hover:text-white">
+                  Privacy
+                </Link>
+              </li>
+              <li>
+                <Link to="/terms/" className="text-neutral-400 hover:text-white">
+                  Terms
+                </Link>
+              </li>
+              <li>
                 <a
                   href="https://github.com/buneeIsSlo/yt-playlist-report"
                   target="_blank"

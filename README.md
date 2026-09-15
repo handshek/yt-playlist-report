@@ -34,7 +34,7 @@ Generate comprehensive reports for YouTube playlists. Get insights on total dura
 2. Install dependencies: `pnpm install`
 3. Copy `.env.example` to `.env.local`, then add your YouTube API key and Ko-fi page ID:
    ```
-   VITE_YT_API_KEY=your_api_key_here
+   YT_API_KEY=your_api_key_here
    VITE_KOFI_PAGE_ID=yourusername
    ```
 4. Run the development server: `pnpm dev`

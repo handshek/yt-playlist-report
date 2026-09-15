@@ -77,13 +77,6 @@ export interface VideoItem {
   contentDetails: VideoContentDetails;
 }
 
-interface VideoDetailsResponse {
-  kind: string;
-  etag: string;
-  items: VideoItem[];
-  pageInfo: PageInfo;
-}
-
 export interface PlaylistDetails {
   id: string;
   title: string;
@@ -104,8 +97,6 @@ type CachedPlaylistReport = {
 };
 
 // Constants
-const YOUTUBE_API_BASE_URL = "https://www.googleapis.com/youtube/v3";
-const YOUTUBE_API_KEY = import.meta.env.VITE_YT_API_KEY;
 const PLAYLIST_REPORT_CACHE_SCHEMA_VERSION = 1;
 const PLAYLIST_REPORT_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PLAYLIST_REPORT_CACHE_PREFIX = "ytpr:playlist-report:";
@@ -193,58 +184,36 @@ export const formatDuration = (seconds: number): string => {
 };
 
 // API functions
-const fetchPlaylistVideoIds = async (playlistId: string): Promise<string[]> => {
-  const videoIds: string[] = [];
-  let nextPageToken: string | undefined;
+const PUBLIC_API_ERRORS = new Set([
+  "forbidden",
+  "invalid_request",
+  "method_not_allowed",
+  "playlist_unavailable",
+  "service_unavailable",
+  "upstream_unavailable",
+]);
 
-  do {
-    const response = await fetch(
-      `${YOUTUBE_API_BASE_URL}/playlistItems?part=contentDetails&playlistId=${playlistId}&key=${YOUTUBE_API_KEY}&maxResults=50${
-        nextPageToken ? `&pageToken=${nextPageToken}` : ""
-      }`
-    );
-    const data: PlaylistResponse = await response.json();
-    videoIds.push(...data.items.map((item) => item.contentDetails.videoId));
-    nextPageToken = data.nextPageToken;
-  } while (nextPageToken);
+const requestPlaylistResource = async <T,>(
+  playlistId: string,
+  resource: "details" | "report"
+): Promise<T> => {
+  const response = await fetch("/api/youtube-playlist", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ playlistId, resource }),
+  });
 
-  return videoIds;
-};
+  const payload = (await response.json()) as { error?: unknown } & T;
 
-const fetchVideoDetails = async (
-  videoIds: string[]
-): Promise<{ videos: VideoItem[]; totalDuration: number }> => {
-  const fetchChunk = async (
-    chunk: string[]
-  ): Promise<{ videos: VideoItem[]; chunkDuration: number }> => {
-    const response = await fetch(
-      `${YOUTUBE_API_BASE_URL}/videos?part=contentDetails,snippet,statistics&id=${chunk.join(
-        ","
-      )}&key=${YOUTUBE_API_KEY}`
-    );
-
-    const data: VideoDetailsResponse = await response.json();
-    const chunkDuration = data.items.reduce(
-      (acc, item) => acc + parseDuration(item.contentDetails.duration),
-      0
-    );
-
-    return { videos: data.items, chunkDuration };
-  };
-
-  const chunks = [];
-  for (let i = 0; i < videoIds.length; i += 50) {
-    chunks.push(videoIds.slice(i, i + 50));
+  if (!response.ok) {
+    const error =
+      typeof payload.error === "string" && PUBLIC_API_ERRORS.has(payload.error)
+        ? payload.error
+        : "service_unavailable";
+    throw new Error(error);
   }
 
-  const results = await Promise.all(chunks.map(fetchChunk));
-  const allVideos = results.flatMap((result) => result.videos);
-  const totalDuration = results.reduce(
-    (acc, result) => acc + result.chunkDuration,
-    0
-  );
-
-  return { videos: allVideos, totalDuration };
+  return payload;
 };
 
 const calculatePlaylistDetails = async (
@@ -256,15 +225,10 @@ const calculatePlaylistDetails = async (
     return cachedReport;
   }
 
-  const videoIds = await fetchPlaylistVideoIds(playlistId);
-  const { videos, totalDuration } = await fetchVideoDetails(videoIds);
-  const avgDuration = Math.round(totalDuration / videos.length);
-
-  const playlistReport = {
-    videos,
-    duration: formatDuration(totalDuration),
-    avgDuration: formatDuration(avgDuration),
-  };
+  const playlistReport = await requestPlaylistResource<PlaylistReportData>(
+    playlistId,
+    "report"
+  );
 
   writeCachedPlaylistReport(playlistId, playlistReport);
 
@@ -280,29 +244,7 @@ export const createPlaylistDetailsQuery = (id: string) => ({
 export const fetchPlaylistDetails = async (
   playlistId: string
 ): Promise<PlaylistDetails> => {
-  const response = await fetch(
-    `${YOUTUBE_API_BASE_URL}/playlists?part=snippet&id=${playlistId}&key=${YOUTUBE_API_KEY}`
-  );
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const playlist = data.items[0];
-
-  if (playlist === undefined) {
-    throw new Error("Invalid playlist ID");
-  }
-
-  console.log(playlist);
-
-  return {
-    id: playlist.id,
-    title: playlist.snippet.title,
-    description: playlist.snippet.description,
-    thumbnails: playlist.snippet.thumbnails,
-  };
+  return requestPlaylistResource<PlaylistDetails>(playlistId, "details");
 };
 
 export const loadPlaylist = (queryClient: QueryClient): LoaderFunction => {
