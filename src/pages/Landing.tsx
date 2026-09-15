@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import type { MetaFunction } from "react-router";
 import JsonLd from "@/components/JsonLd";
 import { pageMeta, SITE_NAME, SITE_URL } from "@/lib/site";
+import { FeedbackFormDefinition } from "@/components/ReportFeedback";
 
 export const getLandingMeta = () =>
   pageMeta({
@@ -48,6 +49,8 @@ function Landing() {
         <Cta onCtaClick={scrollToHero} />
       </main>
       <Footer />
+      {/* Netlify detects forms from prerendered HTML; the interactive copy lives on reports. */}
+      <FeedbackFormDefinition />
     </>
   );
 }

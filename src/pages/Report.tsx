@@ -30,6 +30,7 @@ import QRCode from "react-qr-code";
 import { queryClient } from "@/lib/query-client";
 import { loader as playlistLoader } from "@/api/PlaylistApi";
 import { pageMeta } from "@/lib/site";
+import ReportFeedback from "@/components/ReportFeedback";
 
 export const getReportMeta = (playlistId = "playlist") =>
   pageMeta({
@@ -243,7 +244,10 @@ const Report: React.FC = () => {
               resolve={videoDetails}
               errorElement={<div>Error loading playlist details</div>}
             >
-              <PlaylistDuration />
+              <>
+                <PlaylistDuration />
+                <ReportFeedback />
+              </>
             </Await>
           </Suspense>
         </div>
