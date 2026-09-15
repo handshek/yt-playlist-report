@@ -2,7 +2,20 @@ import path from "path"
 import { reactRouter } from "@react-router/dev/vite"
 import { defineConfig, loadEnv, type Plugin } from "vite"
 import { handler } from "./netlify/functions/github-stars"
+import { handleFeedbackRequest as feedbackHandler } from "./netlify/functions/feedback"
 import { handleYoutubePlaylistRequest as youtubePlaylistHandler } from "./netlify/functions/youtube-playlist"
+
+interface LocalFunctionRequest {
+  httpMethod?: string
+  headers?: Record<string, string | undefined>
+  body?: string | null
+}
+
+interface LocalFunctionResponse {
+  statusCode: number
+  headers: Record<string, string>
+  body: string
+}
 
 const readRequestBody = (request: import("node:http").IncomingMessage) =>
   new Promise<string>((resolve, reject) => {
@@ -33,16 +46,22 @@ const localGithubStarsApi = (): Plugin => ({
   },
 })
 
-const localYoutubePlaylistApi = (): Plugin => ({
-  name: "local-youtube-playlist-api",
+const localFunctionApi = (
+  name: string,
+  pathname: string,
+  functionHandler: (
+    request: LocalFunctionRequest
+  ) => Promise<LocalFunctionResponse>
+): Plugin => ({
+  name,
   configureServer(server) {
     server.middlewares.use(async (request, response, next) => {
-      if (request.url?.split("?", 1)[0] !== "/api/youtube-playlist") {
+      if (request.url?.split("?", 1)[0] !== pathname) {
         next()
         return
       }
 
-      const result = await youtubePlaylistHandler({
+      const result = await functionHandler({
         httpMethod: request.method,
         headers: Object.fromEntries(
           Object.entries(request.headers).map(([name, value]) => [
@@ -68,9 +87,23 @@ export default defineConfig(({ mode }) => {
   // Local middleware needs the same server-only secret used by Netlify Functions.
   process.env.YT_API_KEY ??=
     environment.YT_API_KEY || environment.VITE_YT_API_KEY
+  process.env.DEPLOY_PRIME_URL ??= "http://127.0.0.1:5001"
 
   return {
-    plugins: [localGithubStarsApi(), localYoutubePlaylistApi(), reactRouter()],
+    plugins: [
+      localGithubStarsApi(),
+      localFunctionApi(
+        "local-youtube-playlist-api",
+        "/api/youtube-playlist",
+        youtubePlaylistHandler
+      ),
+      localFunctionApi(
+        "local-feedback-api",
+        "/api/feedback",
+        feedbackHandler
+      ),
+      reactRouter(),
+    ],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),

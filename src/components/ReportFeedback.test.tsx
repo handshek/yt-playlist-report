@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { submitFeedback } from "@/lib/feedback";
 import { trackSeoEvent } from "@/lib/seo-events";
-import ReportFeedback, { FeedbackFormDefinition } from "./ReportFeedback";
+import FeedbackFormDefinition from "./FeedbackFormDefinition";
+import ReportFeedback from "./ReportFeedback";
 
 vi.mock("@/lib/feedback", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/feedback")>()),
@@ -19,6 +20,7 @@ describe("ReportFeedback", () => {
     cleanup();
     window.sessionStorage.clear();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("renders the static Netlify form definition without personal fields", () => {
@@ -52,8 +54,42 @@ describe("ReportFeedback", () => {
     fireEvent.click(screen.getByRole("button", { name: "Yes, this was useful" }));
 
     expect(screen.getByRole("dialog", { name: "Help shape what comes next" })).toBeTruthy();
-    expect(trackSeoEvent).toHaveBeenNthCalledWith(1, { name: "feedback_open" });
-    expect(trackSeoEvent).toHaveBeenNthCalledWith(2, { name: "offer_view" });
+    expect(trackSeoEvent).toHaveBeenCalledTimes(1);
+    expect(trackSeoEvent).toHaveBeenCalledWith({ name: "feedback_open" });
+    expect(trackSeoEvent).not.toHaveBeenCalledWith({ name: "offer_view" });
+  });
+
+  it("counts an offer view only after at least half the offer is visible", () => {
+    let observerCallback: IntersectionObserverCallback = () => undefined;
+    const disconnect = vi.fn();
+    const observe = vi.fn();
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          observerCallback = callback;
+        }
+        observe = observe;
+        disconnect = disconnect;
+        unobserve = vi.fn();
+        takeRecords = () => [];
+        root = null;
+        rootMargin = "0px";
+        thresholds = [0.5];
+      }
+    );
+    render(<ReportFeedback />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Yes, this was useful" }));
+    expect(trackSeoEvent).not.toHaveBeenCalledWith({ name: "offer_view" });
+
+    observerCallback(
+      [{ isIntersecting: true, intersectionRatio: 0.5 } as IntersectionObserverEntry],
+      {} as IntersectionObserver
+    );
+
+    expect(trackSeoEvent).toHaveBeenCalledWith({ name: "offer_view" });
+    expect(disconnect).toHaveBeenCalled();
   });
 
   it("submits selected chips and the price response without a playlist identifier", async () => {

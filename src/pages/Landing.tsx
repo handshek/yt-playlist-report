@@ -8,7 +8,7 @@ import Footer from "@/components/Footer";
 import type { MetaFunction } from "react-router";
 import JsonLd from "@/components/JsonLd";
 import { pageMeta, SITE_NAME, SITE_URL } from "@/lib/site";
-import { FeedbackFormDefinition } from "@/components/ReportFeedback";
+import FeedbackFormDefinition from "@/components/FeedbackFormDefinition";
 
 export const getLandingMeta = () =>
   pageMeta({

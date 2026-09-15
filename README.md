@@ -61,7 +61,11 @@ environment variable to increase the GitHub API rate limit; the route also
 works without it. Successful responses are cached for 24 hours and may remain
 stale for one additional hour while the cache refreshes in the background.
 
-Normal navigation is recorded as a pageview. A playlist path such as `/playlist/PLabc123` is recorded only after its complete report loads successfully, once per completed report view. Analytics failures never block report generation.
+Normal navigation is recorded as a pageview. Successful reports, feedback categories, offer responses, and allowlisted campaign sources use fixed event paths that never contain playlist IDs, submitted URLs, or free-text feedback. Events are deduplicated within the browser session, and analytics failures never block report generation.
+
+## 💬 Optional product feedback
+
+Successful reports include an optional feedback pulse. Enable automatic form detection in Netlify, then set a server-only `NETLIFY_ACCESS_TOKEN` so the feedback function can remove submissions older than 90 days. Netlify provides `SITE_ID` to the function automatically. The endpoint validates fixed categories, caps notes at 500 characters, checks the exact browser origin, uses a honeypot, and has an edge rate limit. Confirm that Netlify Forms is included in the account at no cost before enabling it; no paid tier is required by the code.
 
 ## ☕ Ko-fi support panel
 
@@ -78,7 +82,7 @@ Counterscale records one `/support/ko-fi/widget` exposure and the first
 their source and never include playlist IDs. Completed payments remain visible
 in Ko-fi.
 
-The versioned [Counterscale patch](analytics/counterscale/counterscale-v3.4.1.patch) adds the playlist leaderboard, exact-origin ingestion controls, bot suppression, and removes the R2 binding and archive cron.
+The versioned [Counterscale patch](analytics/counterscale/counterscale-v3.4.1.patch) adds the SEO and acquisition funnel, exact-origin ingestion controls, bot suppression, and removes the R2 binding and archive cron.
 
 ## 🛣 Roadmap
 

@@ -95,4 +95,16 @@ describe("trackSeoEvent", () => {
       ["/events/feedback-missing/schedule-calendar"],
     ]);
   });
+
+  it("deduplicates the same analytics path for the browser session", () => {
+    trackSeoEvent({ name: "report_success" });
+    trackSeoEvent({ name: "report_success" });
+    trackSeoEvent({ name: "offer_view" });
+    trackSeoEvent({ name: "offer_view" });
+
+    expect(vi.mocked(trackPageview).mock.calls).toEqual([
+      ["/events/report-success"],
+      ["/events/offer-view"],
+    ]);
+  });
 });

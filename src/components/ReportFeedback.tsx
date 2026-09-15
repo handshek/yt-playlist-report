@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -83,27 +84,6 @@ const ChoiceButton = ({ selected, children, onClick }: ChoiceButtonProps) => (
   </button>
 );
 
-export const FeedbackFormDefinition = () => (
-  <form
-    name={FEEDBACK_FORM_NAME}
-    method="POST"
-    data-netlify="true"
-    data-netlify-honeypot="bot-field"
-    hidden
-    aria-hidden="true"
-  >
-    <input type="hidden" name="form-name" value={FEEDBACK_FORM_NAME} />
-    <input name="bot-field" />
-    <input name="sentiment" />
-    <input name="use-case" />
-    <input name="helpful" />
-    <input name="missing" />
-    <input name="offer-response" />
-    <textarea name="comment" />
-    <input name="source" />
-  </form>
-);
-
 const ReportFeedback = () => {
   const [sentiment, setSentiment] = useState<FeedbackSentiment | null>(null);
   const [useCase, setUseCase] = useState<FeedbackUseCase | null>(null);
@@ -118,7 +98,9 @@ const ReportFeedback = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trackedOpen = useRef(false);
+  const trackedOfferView = useRef(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const offerRef = useRef<HTMLFieldSetElement>(null);
   const yesButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const descriptionId = useId();
@@ -146,6 +128,41 @@ const ReportFeedback = () => {
     }
   }, [hasOpened, isOpen]);
 
+  const markOfferViewed = useCallback(() => {
+    if (trackedOfferView.current) return;
+    trackedOfferView.current = true;
+    trackSeoEvent({ name: "offer_view" });
+  }, []);
+
+  useEffect(() => {
+    const offer = offerRef.current;
+    if (
+      !isOpen ||
+      !offer ||
+      trackedOfferView.current ||
+      typeof IntersectionObserver === "undefined"
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries.some(
+            (entry) => entry.isIntersecting && entry.intersectionRatio >= 0.5
+          )
+        ) {
+          markOfferViewed();
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(offer);
+
+    return () => observer.disconnect();
+  }, [isOpen, markOfferViewed]);
+
   const openFeedback = (answer: FeedbackSentiment) => {
     setSentiment(answer);
     setHasOpened(true);
@@ -155,7 +172,6 @@ const ReportFeedback = () => {
     if (!trackedOpen.current) {
       trackedOpen.current = true;
       trackSeoEvent({ name: "feedback_open" });
-      trackSeoEvent({ name: "offer_view" });
     }
   };
 
@@ -363,7 +379,12 @@ const ReportFeedback = () => {
                 </div>
               </fieldset>
 
-              <fieldset className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4">
+              <fieldset
+                ref={offerRef}
+                onFocusCapture={markOfferViewed}
+                onMouseEnter={markOfferViewed}
+                className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4"
+              >
                 <legend className="px-1 font-black text-neutral-950">
                   Would you pay $7.99 once for a Playlist Planner Pack?
                 </legend>

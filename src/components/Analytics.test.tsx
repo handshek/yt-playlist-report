@@ -39,8 +39,36 @@ describe("Analytics", () => {
 
   afterEach(() => {
     cleanup();
+    window.sessionStorage.clear();
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("captures an allowlisted campaign source for later conversion events", async () => {
+    const router = createMemoryRouter(routes, {
+      initialEntries: [
+        "/?utm_source=producthunt&utm_medium=referral&playlist=PLprivate_123",
+      ],
+    });
+
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => {
+      expect(window.sessionStorage.getItem("ytpr:acquisition-source")).toBe(
+        "producthunt"
+      );
+      expect(Counterscale.trackPageview).toHaveBeenCalledWith({
+        url: "/?utm_source=producthunt",
+        referrer: window.location.origin,
+      });
+    });
+    expect(JSON.stringify(vi.mocked(Counterscale.trackPageview).mock.calls)).not.toContain(
+      "PLprivate_123"
+    );
+    expect(JSON.stringify(vi.mocked(Counterscale.trackPageview).mock.calls)).not.toContain(
+      "utm_medium"
+    );
   });
 
   it("tracks an ordinary page through the configured Counterscale deployment", async () => {
@@ -54,7 +82,10 @@ describe("Analytics", () => {
         reporterUrl: "https://ytpr-data.example.workers.dev/collect",
         siteId: "ytpr-production",
       });
-      expect(Counterscale.trackPageview).toHaveBeenCalledWith({ url: "/" });
+      expect(Counterscale.trackPageview).toHaveBeenCalledWith({
+        url: "/",
+        referrer: window.location.origin,
+      });
     });
   });
 
@@ -83,6 +114,7 @@ describe("Analytics", () => {
     await waitFor(() => {
       expect(Counterscale.trackPageview).toHaveBeenCalledWith({
         url: path,
+        referrer: window.location.origin,
       });
     });
   });

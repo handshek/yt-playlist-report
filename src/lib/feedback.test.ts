@@ -24,23 +24,20 @@ describe("feedback submission", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];
-    const payload = new URLSearchParams(String(options?.body));
-
-    expect(url).toBe("/");
+    expect(url).toBe("/api/feedback");
     expect(options).toMatchObject({
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: { "Content-Type": "application/json" },
     });
-    expect(Object.fromEntries(payload)).toEqual({
-      "form-name": "ytpr-feedback",
+    expect(JSON.parse(String(options?.body))).toEqual({
       sentiment: "yes",
-      "use-case": "study-course",
-      helpful: "duration-speed,search-sort",
-      missing: "schedule-calendar",
-      "offer-response": "maybe",
+      useCase: "study-course",
+      helpful: ["duration-speed", "search-sort"],
+      missing: ["schedule-calendar"],
+      offerResponse: "maybe",
       comment: "A calendar export would help.",
       source: "producthunt",
-      "bot-field": "",
+      honeypot: "",
     });
     expect(String(options?.body)).not.toContain("playlist");
   });
