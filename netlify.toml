@@ -12,6 +12,17 @@ to = "/.netlify/functions/github-stars"
 status = 200
 
 [[redirects]]
+from = "/api/youtube-playlist"
+to = "/.netlify/functions/youtube-playlist"
+status = 200
+
+# Keep YouTube quota protection beside the rewrite Netlify applies in production.
+[redirects.rate_limit]
+window_limit = 30
+window_size = 60
+aggregate_by = ["ip", "domain"]
+
+[[redirects]]
 from = "/playlist/*"
 to = "/__spa-fallback.html"
 status = 200
