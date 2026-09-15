@@ -188,7 +188,15 @@ describe("YouTube playlist API", () => {
       videos: [{ id: "video-one" }, { id: "video-two" }],
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(String(fetchMock.mock.calls[0][0])).toContain("key=server-only-test-key");
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain(
+      "server-only-test-key"
+    );
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      headers: {
+        Accept: "application/json",
+        "x-goog-api-key": "server-only-test-key",
+      },
+    });
   });
 
   it("maps unavailable playlists and upstream failures to stable errors", async () => {

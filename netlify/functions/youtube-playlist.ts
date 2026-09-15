@@ -229,9 +229,10 @@ const youtubeRequest = async (
   parameters: Record<string, string>,
   apiKey: string
 ) => {
-  const search = new URLSearchParams({ ...parameters, key: apiKey });
+  const search = new URLSearchParams(parameters);
   const response = await fetch(`${YOUTUBE_API_BASE_URL}/${resource}?${search}`, {
-    headers: { Accept: "application/json" },
+    // Keep credentials out of URLs, which are more likely to enter logs.
+    headers: { Accept: "application/json", "x-goog-api-key": apiKey },
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
 
