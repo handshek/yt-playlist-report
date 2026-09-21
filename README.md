@@ -1,3 +1,5 @@
+
+
 <div align="center">
 
 # [🎞 YouTube Playlist Report](https://ytpr.netlify.app)
@@ -26,7 +28,6 @@ Generate comprehensive reports for YouTube playlists. Get insights on total dura
 - Tanstack Query
 - Tailwind CSS
 - Shadcn UI
-- Framer Motion
 
 ## 💻 Setup Locally
 
