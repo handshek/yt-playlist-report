@@ -21,6 +21,7 @@ vi.mock("@counterscale/tracker", () => ({
 
 describe("KofiSupportModal", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     vi.stubEnv("VITE_KOFI_PAGE_ID", "handshek");
     vi.stubEnv(
       "VITE_COUNTERSCALE_REPORTER_URL",
@@ -32,6 +33,7 @@ describe("KofiSupportModal", () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     vi.useRealTimers();
@@ -58,6 +60,138 @@ describe("KofiSupportModal", () => {
       expect(Counterscale.trackPageview).toHaveBeenCalledWith({
         url: "/support/ko-fi/widget?source=landing",
       });
+    });
+  });
+
+  it("welcomes report visitors with a kind, optional support prompt", async () => {
+    render(
+      <MemoryRouter initialEntries={["/playlist/PLprivate-id"]}>
+        <KofiSupportModal reportReady />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "Did this report help?" })
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "If YTPR saved you a little time, you can help keep it useful, ad-free, and improving. No pressure—your report is ready either way."
+      )
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Don’t show this again in this browser",
+      })
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Maybe later" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Support YTPR" })).toBeTruthy();
+
+    await waitFor(() => {
+      expect(Counterscale.trackPageview).toHaveBeenCalledWith({
+        url: "/support/ko-fi/prompt?source=report",
+      });
+    });
+    expect(
+      vi.mocked(Counterscale.trackPageview).mock.calls
+        .map(([event]) => event?.url ?? "")
+        .join(" ")
+    ).not.toContain("PLprivate-id");
+  });
+
+  it("waits until the report has finished loading before showing the prompt", () => {
+    render(
+      <MemoryRouter initialEntries={["/playlist/PLprivate-id"]}>
+        <KofiSupportModal />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.queryByRole("dialog", { name: "Did this report help?" })
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Support YTPR on Ko-fi" })
+    ).toBeTruthy();
+  });
+
+  it("opens Ko-fi from the prompt and records support intent without the playlist ID", async () => {
+    render(
+      <MemoryRouter initialEntries={["/playlist/PLmust-stay-private"]}>
+        <KofiSupportModal reportReady />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Support YTPR" })
+    );
+
+    expect(screen.getByRole("dialog", { name: "Support YTPR" })).toBeTruthy();
+    expect(screen.getByTitle("Support YTPR on Ko-fi")).toBeTruthy();
+    expect(Counterscale.trackPageview).toHaveBeenCalledWith({
+      url: "/support/ko-fi/prompt-cta?source=report",
+    });
+    expect(Counterscale.trackPageview).toHaveBeenCalledWith({
+      url: "/support/ko-fi/open?source=report",
+    });
+    expect(
+      vi.mocked(Counterscale.trackPageview).mock.calls
+        .map(([event]) => event?.url ?? "")
+        .join(" ")
+    ).not.toContain("PLmust-stay-private");
+  });
+
+  it("does not interrupt an already-open Ko-fi panel when the report becomes ready", () => {
+    const view = render(
+      <MemoryRouter initialEntries={["/playlist/PLprivate-id"]}>
+        <KofiSupportModal />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Support YTPR on Ko-fi" })
+    );
+    expect(screen.getByRole("dialog", { name: "Support YTPR" })).toBeTruthy();
+
+    view.rerender(
+      <MemoryRouter initialEntries={["/playlist/PLprivate-id"]}>
+        <KofiSupportModal reportReady />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("dialog", { name: "Support YTPR" })).toBeTruthy();
+    expect(
+      screen.queryByRole("dialog", { name: "Did this report help?" })
+    ).toBeNull();
+  });
+
+  it("honors the permanent prompt opt-out while keeping the launcher available", async () => {
+    const firstView = render(
+      <MemoryRouter initialEntries={["/playlist/PLfirst"]}>
+        <KofiSupportModal reportReady />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(
+      await screen.findByRole("checkbox", {
+        name: "Don’t show this again in this browser",
+      })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Maybe later" }));
+    firstView.unmount();
+
+    render(
+      <MemoryRouter initialEntries={["/playlist/PLsecond"]}>
+        <KofiSupportModal reportReady />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.queryByRole("dialog", { name: "Did this report help?" })
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Support YTPR on Ko-fi" })
+    ).toBeTruthy();
+    expect(Counterscale.trackPageview).toHaveBeenCalledWith({
+      url: "/support/ko-fi/prompt-opt-out?source=report",
     });
   });
 

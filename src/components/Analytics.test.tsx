@@ -1,12 +1,20 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createMemoryRouter,
   type RouteObject,
+  useOutletContext,
 } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import * as Counterscale from "@counterscale/tracker";
 import { comparisonPath, comparisons } from "@/content/comparisons";
+import type { ReportOutletContext } from "@/lib/report-context";
 import Analytics from "./Analytics";
 
 vi.mock("@counterscale/tracker", () => ({
@@ -15,13 +23,19 @@ vi.mock("@counterscale/tracker", () => ({
   trackPageview: vi.fn(),
 }));
 
+const ReportHarness = () => {
+  const { markReportReady } = useOutletContext<ReportOutletContext>();
+
+  return <button onClick={markReportReady}>Finish report</button>;
+};
+
 const routes: RouteObject[] = [
   {
     element: <Analytics />,
     children: [
       { path: "/", element: <div>Home</div> },
       { path: "/compare/:comparisonSlug", element: <div>Comparison</div> },
-      { path: "/playlist/:playlistId", element: <div>Report</div> },
+      { path: "/playlist/:playlistId", element: <ReportHarness /> },
       { path: "/events/*", element: <div>Reserved event</div> },
     ],
   },
@@ -70,6 +84,25 @@ describe("Analytics", () => {
         url: "/playlist/PLabc_123",
       });
     });
+  });
+
+  it("shows the support prompt only after the report signals success", async () => {
+    vi.stubEnv("VITE_KOFI_PAGE_ID", "handshek");
+    const router = createMemoryRouter(routes, {
+      initialEntries: ["/playlist/PLabc_123"],
+    });
+
+    render(<RouterProvider router={router} />);
+
+    expect(
+      screen.queryByRole("dialog", { name: "Did this report help?" })
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Finish report" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Did this report help?" })
+    ).toBeTruthy();
   });
 
   it("tracks comparison pages as ordinary pageviews", async () => {
