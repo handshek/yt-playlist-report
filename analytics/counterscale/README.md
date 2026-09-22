@@ -46,7 +46,7 @@ Enter `true` for `CF_AUTH_ENABLED` and `false` for `CF_STORAGE_ENABLED`. Use you
 From `packages/server` in the prepared checkout:
 
 ```bash
-corepack pnpm@9.15.0 exec wrangler deploy --var VERSION:3.4.1-ytpr.2
+corepack pnpm@9.15.0 exec wrangler deploy --var VERSION:3.4.1-ytpr.3
 ```
 
 Wrangler should report a URL shaped like `https://ytpr-data.<account>.workers.dev`. Open `/dashboard` and sign in. Confirm `/cache` and `/collect` reject requests without `Origin: https://ytpr.netlify.app`; the application tracker supplies that browser header.
@@ -62,6 +62,6 @@ VITE_COUNTERSCALE_REPORTER_URL=https://ytpr-data.<account>.workers.dev/collect
 VITE_COUNTERSCALE_SITE_ID=ytpr-production
 ```
 
-Redeploy Netlify. Successful report paths then appear in the authenticated **Playlist Measurements** card. The **SEO Conversion Funnel** card separately reports submits, successful reports, categorized failures, completion rate, and content CTA clicks.
+Redeploy Netlify. The authenticated **SEO Conversion Funnel** card reports submits, successful reports, categorized failures, completion rate, feedback and offer responses, content CTA clicks, and allowlisted acquisition sources.
 
-Funnel events use fixed paths under `/events/`. The application never places submitted URLs, playlist IDs, user input, or raw API errors in these event paths, and the Worker excludes them from ordinary pageview totals. Existing completed-report measurements remain under `/playlist/<playlist-id>` and continue to power the Playlist Measurements card. Removing both build variables and redeploying disables all application tracking without affecting report generation.
+Funnel events use fixed paths under `/events/`. Campaign attribution is limited to the source names shared by the application and dashboard; unknown `utm_source` values are ignored. The application never places submitted URLs, playlist IDs, free-text feedback, other user input, or raw API errors in analytics, and the Worker excludes events from ordinary pageview totals. The fixed `/events/report-success` signal replaces the former identifier-bearing playlist measurement. Removing both build variables and redeploying disables all application tracking without affecting report generation.

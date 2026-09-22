@@ -16,6 +16,10 @@ export default {
   // generated directories at their canonical trailing-slash URLs.
   prerender: [
     "/",
+    // Trust pages need static output because only report URLs use the SPA fallback.
+    "/about",
+    "/privacy",
+    "/terms",
     prerenderPath(COMPARISON_HUB_PATH),
     ...comparisons.map((comparison) =>
       prerenderPath(comparisonPath(comparison))

@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { useNavigate, useNavigation } from "react-router";
+import { Link, useNavigate, useNavigation } from "react-router";
 import { Button } from "./ui/button";
 import { useMutation } from "@tanstack/react-query";
 import { fetchPlaylistDetails } from "@/api/PlaylistApi";
@@ -87,6 +87,26 @@ const Form = () => {
             {isPending ? "Generating..." : "Generate"}
           </Button>
         </form>
+        <p className="mx-auto max-w-2xl text-center text-xs leading-5 text-neutral-500">
+          By generating a report, you agree to our{" "}
+          <Link to="/terms/" className="underline hover:text-neutral-800">
+            Terms
+          </Link>
+          , acknowledge our{" "}
+          <Link to="/privacy/" className="underline hover:text-neutral-800">
+            Privacy Policy
+          </Link>
+          , and agree to the{" "}
+          <a
+            href="https://www.youtube.com/t/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-neutral-800"
+          >
+            YouTube Terms
+          </a>
+          .
+        </p>
         {isPending && (
           <div className="w-fit mx-auto py-1 px-3 mt-2 flex items-center gap-2 rounded-full bg-neutral-50 border animate-pulse ">
             <Loader className="w-4 h-4 animate-spin" />

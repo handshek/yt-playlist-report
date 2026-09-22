@@ -5,6 +5,10 @@ const appSource = await readFile(
   new URL("../../src/lib/seo-events.ts", import.meta.url),
   "utf8"
 );
+const feedbackContractSource = await readFile(
+  new URL("../../src/lib/feedback-contract.ts", import.meta.url),
+  "utf8"
+);
 const counterscalePatch = await readFile(
   new URL("./counterscale-v3.4.1.patch", import.meta.url),
   "utf8"
@@ -12,26 +16,56 @@ const counterscalePatch = await readFile(
 
 const extractQuotedValues = (source, pattern, label) => {
   const match = source.match(pattern);
-  assert(match, `Could not find the ${label} SEO content-slug allowlist`);
+  assert(match, `Could not find the ${label} allowlist`);
   return [...match[1].matchAll(/"([^"]+)"/g)].map(([, value]) => value);
 };
 
-const appSlugs = extractQuotedValues(
-  appSource,
-  /export const SEO_CONTENT_SLUGS = \[([\s\S]*?)\] as const;/,
-  "application"
-);
-const counterscaleSlugs = extractQuotedValues(
-  counterscalePatch,
-  /\+const seoContentSlugs = new Set\(\[([\s\S]*?)\+\]\);/,
-  "Counterscale"
-);
+const sharedAllowlists = [
+  ["SEO content slugs", appSource, "SEO_CONTENT_SLUGS", "seoContentSlugs"],
+  [
+    "acquisition sources",
+    feedbackContractSource,
+    "ACQUISITION_SOURCES",
+    "acquisitionSources",
+  ],
+  [
+    "feedback use cases",
+    feedbackContractSource,
+    "FEEDBACK_USE_CASES",
+    "feedbackUseCases",
+  ],
+  [
+    "helpful feedback reasons",
+    feedbackContractSource,
+    "FEEDBACK_HELPFUL_REASONS",
+    "feedbackHelpfulReasons",
+  ],
+  [
+    "missing feedback reasons",
+    feedbackContractSource,
+    "FEEDBACK_MISSING_REASONS",
+    "feedbackMissingReasons",
+  ],
+];
 
-// The app and separately deployed dashboard must accept the same fixed slugs.
-assert.deepEqual(
-  counterscaleSlugs,
-  appSlugs,
-  "Application and Counterscale SEO content-slug allowlists differ"
-);
+for (const [label, source, appName, counterscaleName] of sharedAllowlists) {
+  const appValues = extractQuotedValues(
+    source,
+    new RegExp(`export const ${appName} = \\[([\\s\\S]*?)\\] as const;`),
+    `application ${label}`
+  );
+  const counterscaleValues = extractQuotedValues(
+    counterscalePatch,
+    new RegExp(`\\+const ${counterscaleName} = new Set\\(\\[([\\s\\S]*?)\\+\\]\\);`),
+    `Counterscale ${label}`
+  );
 
-console.log(`Verified ${appSlugs.length} shared SEO content slugs.`);
+  // The separately deployed app and dashboard must accept the same fixed values.
+  assert.deepEqual(
+    counterscaleValues,
+    appValues,
+    `Application and Counterscale ${label} allowlists differ`
+  );
+}
+
+console.log(`Verified ${sharedAllowlists.length} shared analytics allowlists.`);

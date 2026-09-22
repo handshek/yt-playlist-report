@@ -1,7 +1,29 @@
 import path from "path"
 import { reactRouter } from "@react-router/dev/vite"
-import { defineConfig, type Plugin } from "vite"
+import { defineConfig, loadEnv, type Plugin } from "vite"
 import { handler } from "./netlify/functions/github-stars"
+import { handleFeedbackRequest as feedbackHandler } from "./netlify/functions/feedback"
+import { handleYoutubePlaylistRequest as youtubePlaylistHandler } from "./netlify/functions/youtube-playlist"
+
+interface LocalFunctionRequest {
+  httpMethod?: string
+  headers?: Record<string, string | undefined>
+  body?: string | null
+}
+
+interface LocalFunctionResponse {
+  statusCode: number
+  headers: Record<string, string>
+  body: string
+}
+
+const readRequestBody = (request: import("node:http").IncomingMessage) =>
+  new Promise<string>((resolve, reject) => {
+    const chunks: Buffer[] = []
+    request.on("data", (chunk) => chunks.push(Buffer.from(chunk)))
+    request.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")))
+    request.on("error", reject)
+  })
 
 const localGithubStarsApi = (): Plugin => ({
   name: "local-github-stars-api",
@@ -24,16 +46,73 @@ const localGithubStarsApi = (): Plugin => ({
   },
 })
 
-export default defineConfig({
-  plugins: [localGithubStarsApi(), reactRouter()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+const localFunctionApi = (
+  name: string,
+  pathname: string,
+  functionHandler: (
+    request: LocalFunctionRequest
+  ) => Promise<LocalFunctionResponse>
+): Plugin => ({
+  name,
+  configureServer(server) {
+    server.middlewares.use(async (request, response, next) => {
+      if (request.url?.split("?", 1)[0] !== pathname) {
+        next()
+        return
+      }
+
+      const result = await functionHandler({
+        httpMethod: request.method,
+        headers: Object.fromEntries(
+          Object.entries(request.headers).map(([name, value]) => [
+            name,
+            Array.isArray(value) ? value.join(",") : value,
+          ])
+        ),
+        body: await readRequestBody(request),
+      })
+      response.statusCode = result.statusCode
+
+      for (const [name, value] of Object.entries(result.headers)) {
+        response.setHeader(name, value)
+      }
+
+      response.end(result.body)
+    })
   },
-  server: {
-    // Use the loopback interface so local tooling does not depend on IPv6 resolution.
-    host: "127.0.0.1",
-    port: 5001,
+})
+
+export default defineConfig(({ mode }) => {
+  const environment = loadEnv(mode, process.cwd(), "")
+  // Local middleware needs the same server-only secret used by Netlify Functions.
+  process.env.YT_API_KEY ??=
+    environment.YT_API_KEY || environment.VITE_YT_API_KEY
+  process.env.DEPLOY_PRIME_URL ??= "http://127.0.0.1:5001"
+
+  return {
+    plugins: [
+      localGithubStarsApi(),
+      localFunctionApi(
+        "local-youtube-playlist-api",
+        "/api/youtube-playlist",
+        youtubePlaylistHandler
+      ),
+      localFunctionApi(
+        "local-feedback-api",
+        "/api/feedback",
+        feedbackHandler
+      ),
+      reactRouter(),
+    ],
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
+    server: {
+      // Use the loopback interface so local tooling does not depend on IPv6 resolution.
+      host: "127.0.0.1",
+      port: 5001,
+    },
   }
 })

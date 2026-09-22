@@ -34,6 +34,7 @@ describe("Hero", () => {
         "See total duration, adjust playback speed, and explore every video."
       )
     ).toBeTruthy();
+    expect(screen.getByText("5,000+")).toBeTruthy();
 
     const image = screen.getByRole("img", {
       name: /yt playlist report showing playlist duration, statistics, and video details/i,

@@ -60,7 +60,7 @@ const Hero = () => {
       </div>
       <div className="mt-16 text-center">
         <p className="text-xl md:text-3xl text-neutral-800 font-semibold">
-          <span className="text-red-600 italic font-bold">400+</span> Reports
+          <span className="text-red-600 italic font-bold">5,000+</span> Reports
           Generated 🎉
         </p>
       </div>

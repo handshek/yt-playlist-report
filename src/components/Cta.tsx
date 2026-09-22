@@ -9,7 +9,7 @@ const Cta = ({ onCtaClick }: { onCtaClick: () => void }) => {
           it's free real estate
         </p>
         <h2 className="text-2xl md:text-4xl font-black tracking-tight text-gray-900 mb-2">
-          No ads. No subscriptions. Free forever.
+          Playlist reports stay free. No sign-up required.
         </h2>
         <p className="text-md md:text-lg text-gray-600 mb-8">
           Generate a comprehensive report of any YouTube playlist in seconds.

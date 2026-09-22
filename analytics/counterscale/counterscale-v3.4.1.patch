@@ -26,75 +26,88 @@ index c70f0f6..93f78a8 100644
 +    });
  });
 diff --git a/packages/server/app/analytics/__tests__/query.test.ts b/packages/server/app/analytics/__tests__/query.test.ts
-index c21d8d6..861f554 100644
+index c21d8d6..74ca348 100644
 --- a/packages/server/app/analytics/__tests__/query.test.ts
 +++ b/packages/server/app/analytics/__tests__/query.test.ts
-@@ -294,6 +294,121 @@ describe("AnalyticsEngineAPI", () => {
+@@ -294,6 +294,155 @@ describe("AnalyticsEngineAPI", () => {
          });
      });
  
-+    describe("getPlaylistMeasurements", () => {
-+        test("ranks exact playlist paths by sampled pageview count", async () => {
-+            fetch.mockResolvedValue(
-+                createFetchResponse({
-+                    data: [
-+                        { path: "/playlist/PLpopular", measurements: "17" },
-+                        { path: "/playlist/PLnext", measurements: "9" },
-+                    ],
-+                }),
-+            );
-+
-+            const result = await api.getPlaylistMeasurements(
-+                "ytpr-production",
-+                "30d",
-+                "Asia/Kolkata",
-+                { country: "IN" },
-+                1,
-+            );
-+
-+            expect(result).toEqual([
-+                { playlistId: "PLpopular", measurements: 17 },
-+                { playlistId: "PLnext", measurements: 9 },
-+            ]);
-+
-+            const query = fetch.mock.calls[0][1].body as string;
-+            expect(query).toContain("SUM(_sample_interval) as measurements");
-+            expect(query).toContain("blob3 LIKE '/playlist/%'");
-+            expect(query).toContain("blob8 = 'ytpr-production'");
-+            expect(query).toContain("blob4 = 'IN'");
-+            expect(query).toContain("ORDER BY measurements DESC");
-+            expect(query).toContain("LIMIT 10");
-+            expect(query).not.toContain("double1 = 1");
-+        });
-+    });
-+
 +    describe("getSeoFunnelMetrics", () => {
 +        test("maps only reserved event paths into aggregate funnel metrics", async () => {
-+            fetch.mockResolvedValue(
-+                createFetchResponse({
-+                    data: [
-+                        { path: "/events/report-submit", count: "10" },
-+                        { path: "/events/report-success", count: "7" },
-+                        {
-+                            path: "/events/report-error/invalid-url",
-+                            count: "2",
-+                        },
-+                        {
-+                            path: "/events/report-error/fetch-failed",
-+                            count: "1",
-+                        },
-+                        {
-+                            path: "/events/content-cta/yt-playlist-report-vs-ytpla",
-+                            count: "4",
-+                        },
-+                        {
-+                            path: "/events/content-cta/user-supplied-value",
-+                            count: "98",
-+                        },
-+                        { path: "/events/not-supported", count: "99" },
-+                    ],
-+                }),
-+            );
++            fetch
++                .mockResolvedValueOnce(
++                    createFetchResponse({
++                        data: [
++                            { path: "/events/report-submit", count: "10" },
++                            {
++                                path: "/events/report-success/source/producthunt",
++                                count: "7",
++                            },
++                            {
++                                path: "/events/report-error/invalid-url",
++                                count: "2",
++                            },
++                            {
++                                path: "/events/report-error/fetch-failed",
++                                count: "1",
++                            },
++                            {
++                                path: "/events/content-cta/yt-playlist-report-vs-ytpla/source/producthunt",
++                                count: "4",
++                            },
++                            {
++                                path: "/events/feedback-open/source/producthunt",
++                                count: "6",
++                            },
++                            {
++                                path: "/events/offer-view/source/producthunt",
++                                count: "5",
++                            },
++                            {
++                                path: "/events/feedback-submit/yes/source/producthunt",
++                                count: "3",
++                            },
++                            {
++                                path: "/events/feedback-submit/no/source/producthunt",
++                                count: "1",
++                            },
++                            {
++                                path: "/events/feedback-use-case/creator-marketing/source/producthunt",
++                                count: "2",
++                            },
++                            {
++                                path: "/events/feedback-helpful/duration-speed/source/producthunt",
++                                count: "3",
++                            },
++                            {
++                                path: "/events/feedback-missing/schedule-calendar/source/producthunt",
++                                count: "2",
++                            },
++                            {
++                                path: "/events/offer-response/yes/source/producthunt",
++                                count: "2",
++                            },
++                            {
++                                path: "/events/offer-response/maybe/source/producthunt",
++                                count: "1",
++                            },
++                            {
++                                path: "/events/content-cta/user-supplied-value",
++                                count: "98",
++                            },
++                            { path: "/events/not-supported", count: "99" },
++                        ],
++                    }),
++                )
++                .mockResolvedValueOnce(
++                    createFetchResponse({
++                        data: [
++                            { blob11: "producthunt", count: "9" },
++                            { blob11: "untrusted-source", count: "50" },
++                        ],
++                    }),
++                );
 +
 +            const result = await api.getSeoFunnelMetrics(
 +                "ytpr-production",
@@ -107,6 +120,23 @@ index c21d8d6..861f554 100644
 +                reportSubmits: 10,
 +                reportSuccesses: 7,
 +                reportErrors: { invalidUrl: 2, fetchFailed: 1 },
++                feedbackOpens: 6,
++                offerViews: 5,
++                feedbackSubmits: { yes: 3, no: 1 },
++                offerResponses: { yes: 2, maybe: 1, no: 0 },
++                useCases: [{ slug: "creator-marketing", responses: 2 }],
++                helpfulReasons: [{ slug: "duration-speed", responses: 3 }],
++                missingReasons: [{ slug: "schedule-calendar", responses: 2 }],
++                acquisitionSources: [
++                    {
++                        source: "producthunt",
++                        visitors: 9,
++                        reportSubmits: 0,
++                        reportSuccesses: 7,
++                        offerViews: 5,
++                        feedbackSubmits: 4,
++                    },
++                ],
 +                contentCtaClicks: [
 +                    {
 +                        slug: "yt-playlist-report-vs-ytpla",
@@ -119,6 +149,10 @@ index c21d8d6..861f554 100644
 +            expect(query).toContain("blob3 LIKE '/events/%'");
 +            expect(query).toContain("blob8 = 'ytpr-production'");
 +            expect(query).toContain("blob4 = 'IN'");
++            const visitorQuery = fetch.mock.calls[1][1].body as string;
++            expect(visitorQuery).toContain("blob11");
++            expect(visitorQuery).toContain("double1 = 1");
++            expect(visitorQuery).toContain("blob3 NOT LIKE '/events/%'");
 +        });
 +    });
 +
@@ -185,17 +219,13 @@ index 193b9ce..16a8a18 100644
          Expires: "Mon, 01 Jan 1990 00:00:00 GMT",
          "Cache-Control": "no-cache",
 diff --git a/packages/server/app/analytics/query.ts b/packages/server/app/analytics/query.ts
-index 5810f7e..2dd5edd 100644
+index 5810f7e..02201f2 100644
 --- a/packages/server/app/analytics/query.ts
 +++ b/packages/server/app/analytics/query.ts
-@@ -24,6 +24,32 @@ interface AnalyticsCountResult {
+@@ -24,6 +24,105 @@ interface AnalyticsCountResult {
  }
  
  export type ViewsGroupedByInterval = [string, AnalyticsCountResult][];
-+export type PlaylistMeasurement = {
-+    playlistId: string;
-+    measurements: number;
-+};
 +export type SeoFunnelMetrics = {
 +    reportSubmits: number;
 +    reportSuccesses: number;
@@ -203,6 +233,21 @@ index 5810f7e..2dd5edd 100644
 +        invalidUrl: number;
 +        fetchFailed: number;
 +    };
++    feedbackOpens: number;
++    offerViews: number;
++    feedbackSubmits: { yes: number; no: number };
++    offerResponses: { yes: number; maybe: number; no: number };
++    useCases: Array<{ slug: string; responses: number }>;
++    helpfulReasons: Array<{ slug: string; responses: number }>;
++    missingReasons: Array<{ slug: string; responses: number }>;
++    acquisitionSources: Array<{
++        source: string;
++        visitors: number;
++        reportSubmits: number;
++        reportSuccesses: number;
++        offerViews: number;
++        feedbackSubmits: number;
++    }>;
 +    contentCtaClicks: Array<{ slug: string; clicks: number }>;
 +};
 +
@@ -218,10 +263,72 @@ index 5810f7e..2dd5edd 100644
 +    "youtube-playlist-statistics",
 +    "sort-youtube-playlist-by-length",
 +]);
++const acquisitionSources = new Set([
++    "producthunt",
++    "alternativeto",
++    "uneed",
++    "youquhome",
++]);
++const feedbackUseCases = new Set([
++    "study-course",
++    "teaching-training",
++    "creator-marketing",
++    "music",
++    "research",
++    "other",
++]);
++const feedbackHelpfulReasons = new Set([
++    "duration-speed",
++    "detailed-stats",
++    "search-sort",
++    "video-range",
++    "sharing",
++]);
++const feedbackMissingReasons = new Set([
++    "export-download",
++    "schedule-calendar",
++    "monitoring-alerts",
++    "private-unlisted",
++    "playlist-comparison",
++    "other",
++]);
++
++const splitAcquisitionSource = (path: string) => {
++    const match = path.match(/\/source\/([^/]+)$/);
++    const source = match?.[1];
++
++    if (!source || !acquisitionSources.has(source)) {
++        return { eventPath: path, source: null };
++    }
++
++    return {
++        eventPath: path.slice(0, -(match?.[0].length ?? 0)),
++        source,
++    };
++};
++
++const incrementSlug = (
++    values: Map<string, number>,
++    path: string,
++    prefix: string,
++    allowed: Set<string>,
++    count: number,
++) => {
++    if (!path.startsWith(prefix)) return false;
++    const slug = path.slice(prefix.length);
++    if (!allowed.has(slug)) return false;
++    values.set(slug, (values.get(slug) ?? 0) + count);
++    return true;
++};
++
++const sortedResponses = (values: Map<string, number>) =>
++    [...values.entries()]
++        .map(([slug, responses]) => ({ slug, responses }))
++        .sort((left, right) => right.responses - left.responses);
  /** Given an AnalyticsCountResult object, and an object representing a row returned from
   *  CF Analytics Engine w/ counts grouped by isVisitor, accumulate view,
   *  visit, and visitor counts.
-@@ -248,8 +274,9 @@ export class AnalyticsEngineAPI {
+@@ -248,8 +347,9 @@ export class AnalyticsEngineAPI {
              toDateTime(_bucket, 'Etc/UTC') as bucket
              FROM metricsDataset
              WHERE timestamp >= toDateTime('${localStartTime.format("YYYY-MM-DD HH:mm:ss")}')
@@ -232,7 +339,7 @@ index 5810f7e..2dd5edd 100644
                  ${filterStr}
              GROUP BY _bucket, isVisitor, isBounce
              ORDER BY _bucket ASC`;
-@@ -354,6 +381,7 @@ export class AnalyticsEngineAPI {
+@@ -354,6 +454,7 @@ export class AnalyticsEngineAPI {
                  ${ColumnMappings.bounce} as isBounce
              FROM metricsDataset
              WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
@@ -240,57 +347,10 @@ index 5810f7e..2dd5edd 100644
                  ${filterStr}
              AND ${siteIdColumn} = '${siteId}'
              GROUP BY isVisitor, isBounce
-@@ -397,6 +425,127 @@ export class AnalyticsEngineAPI {
+@@ -397,6 +498,195 @@ export class AnalyticsEngineAPI {
          return returnPromise;
      }
  
-+    async getPlaylistMeasurements(
-+        siteId: string,
-+        interval: string,
-+        tz?: string,
-+        filters: SearchFilters = {},
-+        page: number = 1,
-+        limit: number = 10,
-+    ): Promise<PlaylistMeasurement[]> {
-+        const { startIntervalSql, endIntervalSql } = intervalToSql(
-+            interval,
-+            tz,
-+        );
-+        const filterStr = filtersToSql(filters);
-+        const pathColumn = ColumnMappings.path;
-+
-+        const query = `
-+            SELECT ${pathColumn} as path,
-+                SUM(_sample_interval) as measurements
-+            FROM metricsDataset
-+            WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
-+                AND ${ColumnMappings.siteId} = '${siteId}'
-+                AND ${pathColumn} LIKE '/playlist/%'
-+                ${filterStr}
-+            GROUP BY ${pathColumn}
-+            ORDER BY measurements DESC
-+            LIMIT ${limit * page}`;
-+
-+        const response = await this.query(query);
-+        if (!response.ok) {
-+            throw new Error(response.statusText);
-+        }
-+
-+        const responseData = (await response.json()) as AnalyticsQueryResult<{
-+            path: string;
-+            measurements: number;
-+        }>;
-+        const pageData = responseData.data.slice(
-+            limit * (page - 1),
-+            limit * page,
-+        );
-+
-+        return pageData.map((row) => ({
-+            playlistId: row.path.slice("/playlist/".length),
-+            measurements: Number(row.measurements),
-+        }));
-+    }
-+
 +    async getSeoFunnelMetrics(
 +        siteId: string,
 +        interval: string,
@@ -315,7 +375,18 @@ index 5810f7e..2dd5edd 100644
 +            GROUP BY ${pathColumn}
 +            ORDER BY count DESC`;
 +
-+        const response = await this.query(query);
++        const [response, visitorsBySource] = await Promise.all([
++            this.query(query),
++            this.getVisitorCountByColumn(
++                siteId,
++                "utmSource",
++                interval,
++                tz,
++                filters,
++                1,
++                100,
++            ),
++        ]);
 +        if (!response.ok) {
 +            throw new Error(response.statusText);
 +        }
@@ -328,17 +399,60 @@ index 5810f7e..2dd5edd 100644
 +            reportSubmits: 0,
 +            reportSuccesses: 0,
 +            reportErrors: { invalidUrl: 0, fetchFailed: 0 },
++            feedbackOpens: 0,
++            offerViews: 0,
++            feedbackSubmits: { yes: 0, no: 0 },
++            offerResponses: { yes: 0, maybe: 0, no: 0 },
++            useCases: [],
++            helpfulReasons: [],
++            missingReasons: [],
++            acquisitionSources: [],
 +            contentCtaClicks: [],
 +        };
++        const useCases = new Map<string, number>();
++        const helpfulReasons = new Map<string, number>();
++        const missingReasons = new Map<string, number>();
++        const contentCtaClicks = new Map<string, number>();
++        const sourceMetrics = new Map<
++            string,
++            SeoFunnelMetrics["acquisitionSources"][number]
++        >();
++
++        visitorsBySource.forEach(([source, visitors]) => {
++            if (typeof source === "string" && acquisitionSources.has(source)) {
++                sourceMetrics.set(source, {
++                    source,
++                    visitors,
++                    reportSubmits: 0,
++                    reportSuccesses: 0,
++                    offerViews: 0,
++                    feedbackSubmits: 0,
++                });
++            }
++        });
 +
 +        responseData.data.forEach(({ path, count }) => {
 +            const value = Number(count);
-+            switch (path) {
++            const { eventPath, source } = splitAcquisitionSource(path);
++            const sourceMetric = source
++                ? (sourceMetrics.get(source) ?? {
++                      source,
++                      visitors: 0,
++                      reportSubmits: 0,
++                      reportSuccesses: 0,
++                      offerViews: 0,
++                      feedbackSubmits: 0,
++                  })
++                : null;
++
++            switch (eventPath) {
 +                case "/events/report-submit":
 +                    metrics.reportSubmits += value;
++                    if (sourceMetric) sourceMetric.reportSubmits += value;
 +                    break;
 +                case "/events/report-success":
 +                    metrics.reportSuccesses += value;
++                    if (sourceMetric) sourceMetric.reportSuccesses += value;
 +                    break;
 +                case "/events/report-error/invalid-url":
 +                    metrics.reportErrors.invalidUrl += value;
@@ -346,21 +460,82 @@ index 5810f7e..2dd5edd 100644
 +                case "/events/report-error/fetch-failed":
 +                    metrics.reportErrors.fetchFailed += value;
 +                    break;
++                case "/events/feedback-open":
++                    metrics.feedbackOpens += value;
++                    break;
++                case "/events/offer-view":
++                    metrics.offerViews += value;
++                    if (sourceMetric) sourceMetric.offerViews += value;
++                    break;
++                case "/events/feedback-submit/yes":
++                    metrics.feedbackSubmits.yes += value;
++                    if (sourceMetric) sourceMetric.feedbackSubmits += value;
++                    break;
++                case "/events/feedback-submit/no":
++                    metrics.feedbackSubmits.no += value;
++                    if (sourceMetric) sourceMetric.feedbackSubmits += value;
++                    break;
++                case "/events/offer-response/yes":
++                    metrics.offerResponses.yes += value;
++                    break;
++                case "/events/offer-response/maybe":
++                    metrics.offerResponses.maybe += value;
++                    break;
++                case "/events/offer-response/no":
++                    metrics.offerResponses.no += value;
++                    break;
 +                default: {
-+                    const ctaPrefix = "/events/content-cta/";
-+                    const slug = path.slice(ctaPrefix.length);
 +                    if (
-+                        path.startsWith(ctaPrefix) &&
-+                        seoContentSlugs.has(slug)
++                        !incrementSlug(
++                            contentCtaClicks,
++                            eventPath,
++                            "/events/content-cta/",
++                            seoContentSlugs,
++                            value,
++                        ) &&
++                        !incrementSlug(
++                            useCases,
++                            eventPath,
++                            "/events/feedback-use-case/",
++                            feedbackUseCases,
++                            value,
++                        ) &&
++                        !incrementSlug(
++                            helpfulReasons,
++                            eventPath,
++                            "/events/feedback-helpful/",
++                            feedbackHelpfulReasons,
++                            value,
++                        )
 +                    ) {
-+                        metrics.contentCtaClicks.push({
-+                            slug,
-+                            clicks: value,
-+                        });
++                        incrementSlug(
++                            missingReasons,
++                            eventPath,
++                            "/events/feedback-missing/",
++                            feedbackMissingReasons,
++                            value,
++                        );
 +                    }
 +                }
 +            }
++
++            if (sourceMetric && source) {
++                sourceMetrics.set(source, sourceMetric);
++            }
 +        });
++
++        metrics.useCases = sortedResponses(useCases);
++        metrics.helpfulReasons = sortedResponses(helpfulReasons);
++        metrics.missingReasons = sortedResponses(missingReasons);
++        metrics.contentCtaClicks = [...contentCtaClicks.entries()]
++            .map(([slug, clicks]) => ({ slug, clicks }))
++            .sort((left, right) => right.clicks - left.clicks);
++        metrics.acquisitionSources = [...sourceMetrics.values()].sort(
++            (left, right) =>
++                right.reportSuccesses - left.reportSuccesses ||
++                right.visitors - left.visitors ||
++                right.offerViews - left.offerViews,
++        );
 +
 +        return metrics;
 +    }
@@ -368,7 +543,7 @@ index 5810f7e..2dd5edd 100644
      async getVisitorCountByColumn<T extends keyof typeof ColumnMappings>(
          siteId: string,
          column: T,
-@@ -420,6 +569,7 @@ export class AnalyticsEngineAPI {
+@@ -420,6 +710,7 @@ export class AnalyticsEngineAPI {
              WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
                  AND ${ColumnMappings.newVisitor} = 1
                  AND ${ColumnMappings.siteId} = '${siteId}'
@@ -376,7 +551,7 @@ index 5810f7e..2dd5edd 100644
                  ${filterStr}
              GROUP BY ${_column}
              ORDER BY count DESC
-@@ -485,19 +635,20 @@ export class AnalyticsEngineAPI {
+@@ -485,19 +776,20 @@ export class AnalyticsEngineAPI {
              .format("YYYY-MM-DD HH:mm:ss");
  
          const query = `
@@ -403,7 +578,7 @@ index 5810f7e..2dd5edd 100644
                  ${columnsStr}
              ORDER BY count DESC
          `;
-@@ -519,7 +670,6 @@ export class AnalyticsEngineAPI {
+@@ -519,7 +811,6 @@ export class AnalyticsEngineAPI {
              const responseData =
                  (await response.json()) as AnalyticsQueryResult<SelectionSet>;
  
@@ -411,7 +586,7 @@ index 5810f7e..2dd5edd 100644
              return responseData.data.reduce((acc, row) => {
                  // key is the comma joined string of siteId + all columns
                  const key = [
-@@ -588,6 +738,7 @@ export class AnalyticsEngineAPI {
+@@ -588,6 +879,7 @@ export class AnalyticsEngineAPI {
              WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
                  AND ${ColumnMappings.newVisitor} = 0
                  AND ${ColumnMappings.siteId} = '${siteId}'
@@ -419,7 +594,7 @@ index 5810f7e..2dd5edd 100644
                  ${filterStr}
              GROUP BY ${_column}, ${ColumnMappings.newVisitor}
              ORDER BY count DESC
-@@ -891,6 +1042,7 @@ export class AnalyticsEngineAPI {
+@@ -891,6 +1183,7 @@ export class AnalyticsEngineAPI {
                  ${ColumnMappings.siteId} as siteId
              FROM metricsDataset
              WHERE timestamp >= ${startIntervalSql} AND timestamp < ${endIntervalSql}
@@ -594,19 +769,13 @@ index 8372e34..c7dd043 100644
 +    });
  });
 diff --git a/packages/server/app/routes/__tests__/dashboard.test.tsx b/packages/server/app/routes/__tests__/dashboard.test.tsx
-index 5d56977..f93c1ca 100644
+index 5d56977..4d63e38 100644
 --- a/packages/server/app/routes/__tests__/dashboard.test.tsx
 +++ b/packages/server/app/routes/__tests__/dashboard.test.tsx
-@@ -242,6 +242,28 @@ describe("Dashboard route", () => {
+@@ -242,6 +242,34 @@ describe("Dashboard route", () => {
                              return { countsByProperty: [] };
                          },
                      },
-+                    {
-+                        path: "/resources/playlist-measurements",
-+                        loader: () => {
-+                            return { playlistMeasurements: [] };
-+                        },
-+                    },
 +                    {
 +                        path: "/resources/seo-funnel",
 +                        loader: () => {
@@ -618,6 +787,18 @@ index 5d56977..f93c1ca 100644
 +                                        invalidUrl: 0,
 +                                        fetchFailed: 0,
 +                                    },
++                                    feedbackOpens: 0,
++                                    offerViews: 0,
++                                    feedbackSubmits: { yes: 0, no: 0 },
++                                    offerResponses: {
++                                        yes: 0,
++                                        maybe: 0,
++                                        no: 0,
++                                    },
++                                    useCases: [],
++                                    helpfulReasons: [],
++                                    missingReasons: [],
++                                    acquisitionSources: [],
 +                                    contentCtaClicks: [],
 +                                },
 +                            };
@@ -626,32 +807,18 @@ index 5d56977..f93c1ca 100644
                      {
                          path: "/resources/referrer",
                          loader: () => {
-@@ -310,6 +332,8 @@ describe("Dashboard route", () => {
+@@ -310,6 +338,7 @@ describe("Dashboard route", () => {
  
          await waitFor(() => screen.findByText("Path"));
          expect(screen.getByText("Path")).toBeInTheDocument();
-+        expect(screen.getByText("Playlist Measurements")).toBeInTheDocument();
 +        expect(screen.getByText("SEO Conversion Funnel")).toBeInTheDocument();
          expect(screen.getByText("Referrer")).toBeInTheDocument();
          expect(screen.getByText("Browser")).toBeInTheDocument();
          expect(screen.getByText("Country")).toBeInTheDocument();
-@@ -382,6 +406,35 @@ describe("Dashboard route", () => {
+@@ -382,6 +411,34 @@ describe("Dashboard route", () => {
                              };
                          },
                      },
-+                    {
-+                        path: "/resources/playlist-measurements",
-+                        loader: () => {
-+                            return {
-+                                playlistMeasurements: [
-+                                    {
-+                                        playlistId: "PLabc",
-+                                        measurements: 12,
-+                                    },
-+                                ],
-+                            };
-+                        },
-+                    },
 +                    {
 +                        path: "/resources/seo-funnel",
 +                        loader: () => {
@@ -663,6 +830,18 @@ index 5d56977..f93c1ca 100644
 +                                        invalidUrl: 1,
 +                                        fetchFailed: 1,
 +                                    },
++                                    feedbackOpens: 0,
++                                    offerViews: 0,
++                                    feedbackSubmits: { yes: 0, no: 0 },
++                                    offerResponses: {
++                                        yes: 0,
++                                        maybe: 0,
++                                        no: 0,
++                                    },
++                                    useCases: [],
++                                    helpfulReasons: [],
++                                    missingReasons: [],
++                                    acquisitionSources: [],
 +                                    contentCtaClicks: [],
 +                                },
 +                            };
@@ -671,72 +850,12 @@ index 5d56977..f93c1ca 100644
                      {
                          path: "/resources/referrer",
                          loader: () => {
-diff --git a/packages/server/app/routes/__tests__/resources.playlist-measurements.test.tsx b/packages/server/app/routes/__tests__/resources.playlist-measurements.test.tsx
-new file mode 100644
-index 0000000..86bc735
---- /dev/null
-+++ b/packages/server/app/routes/__tests__/resources.playlist-measurements.test.tsx
-@@ -0,0 +1,54 @@
-+// @vitest-environment jsdom
-+import { render, screen } from "@testing-library/react";
-+import { describe, expect, test, vi } from "vitest";
-+import "vitest-dom/extend-expect";
-+
-+import {
-+    PlaylistMeasurementsTable,
-+    loader,
-+} from "../resources.playlist-measurements";
-+import { createFetchResponse, getDefaultContext } from "./testutils";
-+
-+vi.mock("~/lib/auth", () => ({
-+    requireAuth: vi.fn(),
-+}));
-+
-+describe("Resources/Playlist measurements route", () => {
-+    test("returns a ten-row page from the measurement query", async () => {
-+        global.fetch = vi.fn().mockResolvedValue(
-+            createFetchResponse({
-+                data: [
-+                    { path: "/playlist/PLabc", measurements: "12" },
-+                ],
-+            }),
-+        );
-+
-+        const response = await loader({
-+            ...getDefaultContext(),
-+            request: {
-+                url: "http://localhost:3000/resources/playlist-measurements?site=ytpr-production&interval=30d&page=1",
-+            },
-+        } as any);
-+
-+        expect(response).toEqual({
-+            playlistMeasurements: [
-+                { playlistId: "PLabc", measurements: 12 },
-+            ],
-+            page: 1,
-+        });
-+    });
-+
-+    test("renders exact IDs as YouTube playlist links", () => {
-+        render(
-+            <PlaylistMeasurementsTable
-+                rows={[{ playlistId: "PLabc_123-xyz", measurements: 7 }]}
-+            />,
-+        );
-+
-+        expect(screen.getByText("PLabc_123-xyz")).toHaveAttribute(
-+            "href",
-+            "https://www.youtube.com/playlist?list=PLabc_123-xyz",
-+        );
-+        expect(screen.getByText("7")).toBeInTheDocument();
-+    });
-+});
 diff --git a/packages/server/app/routes/__tests__/resources.seo-funnel.test.tsx b/packages/server/app/routes/__tests__/resources.seo-funnel.test.tsx
 new file mode 100644
-index 0000000..9e0687d
+index 0000000..9676fa2
 --- /dev/null
 +++ b/packages/server/app/routes/__tests__/resources.seo-funnel.test.tsx
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,144 @@
 +// @vitest-environment jsdom
 +import { render, screen } from "@testing-library/react";
 +import type { LoaderFunctionArgs } from "react-router";
@@ -752,22 +871,47 @@ index 0000000..9e0687d
 +
 +describe("Resources/SEO funnel route", () => {
 +    test("returns aggregate conversion metrics from reserved events", async () => {
-+        global.fetch = vi.fn().mockResolvedValue(
-+            createFetchResponse({
-+                data: [
-+                    { path: "/events/report-submit", count: "8" },
-+                    { path: "/events/report-success", count: "6" },
-+                    {
-+                        path: "/events/report-error/invalid-url",
-+                        count: "1",
-+                    },
-+                    {
-+                        path: "/events/content-cta/yt-playlist-report-vs-ytpla",
-+                        count: "3",
-+                    },
-+                ],
-+            }),
-+        );
++        global.fetch = vi
++            .fn()
++            .mockResolvedValueOnce(
++                createFetchResponse({
++                    data: [
++                        { path: "/events/report-submit", count: "8" },
++                        { path: "/events/report-success", count: "6" },
++                        { path: "/events/feedback-open", count: "4" },
++                        { path: "/events/offer-view", count: "4" },
++                        { path: "/events/feedback-submit/yes", count: "3" },
++                        { path: "/events/feedback-submit/no", count: "1" },
++                        { path: "/events/offer-response/yes", count: "2" },
++                        { path: "/events/offer-response/maybe", count: "1" },
++                        {
++                            path: "/events/feedback-use-case/study-course",
++                            count: "3",
++                        },
++                        {
++                            path: "/events/feedback-helpful/duration-speed",
++                            count: "3",
++                        },
++                        {
++                            path: "/events/feedback-missing/schedule-calendar",
++                            count: "2",
++                        },
++                        {
++                            path: "/events/report-error/invalid-url",
++                            count: "1",
++                        },
++                        {
++                            path: "/events/content-cta/yt-playlist-report-vs-ytpla",
++                            count: "3",
++                        },
++                    ],
++                }),
++            )
++            .mockResolvedValueOnce(
++                createFetchResponse({
++                    data: [{ blob11: "producthunt", count: "9" }],
++                }),
++            );
 +
 +        const response = await loader({
 +            ...getDefaultContext(),
@@ -780,6 +924,23 @@ index 0000000..9e0687d
 +            reportSubmits: 8,
 +            reportSuccesses: 6,
 +            reportErrors: { invalidUrl: 1, fetchFailed: 0 },
++            feedbackOpens: 4,
++            offerViews: 4,
++            feedbackSubmits: { yes: 3, no: 1 },
++            offerResponses: { yes: 2, maybe: 1, no: 0 },
++            useCases: [{ slug: "study-course", responses: 3 }],
++            helpfulReasons: [{ slug: "duration-speed", responses: 3 }],
++            missingReasons: [{ slug: "schedule-calendar", responses: 2 }],
++            acquisitionSources: [
++                {
++                    source: "producthunt",
++                    visitors: 9,
++                    reportSubmits: 0,
++                    reportSuccesses: 0,
++                    offerViews: 0,
++                    feedbackSubmits: 0,
++                },
++            ],
 +            contentCtaClicks: [
 +                { slug: "yt-playlist-report-vs-ytpla", clicks: 3 },
 +            ],
@@ -793,6 +954,25 @@ index 0000000..9e0687d
 +                    reportSubmits: 8,
 +                    reportSuccesses: 6,
 +                    reportErrors: { invalidUrl: 1, fetchFailed: 1 },
++                    feedbackOpens: 4,
++                    offerViews: 4,
++                    feedbackSubmits: { yes: 3, no: 1 },
++                    offerResponses: { yes: 2, maybe: 1, no: 1 },
++                    useCases: [{ slug: "study-course", responses: 3 }],
++                    helpfulReasons: [{ slug: "duration-speed", responses: 3 }],
++                    missingReasons: [
++                        { slug: "schedule-calendar", responses: 2 },
++                    ],
++                    acquisitionSources: [
++                        {
++                            source: "producthunt",
++                            visitors: 9,
++                            reportSubmits: 8,
++                            reportSuccesses: 6,
++                            offerViews: 4,
++                            feedbackSubmits: 4,
++                        },
++                    ],
 +                    contentCtaClicks: [
 +                        {
 +                            slug: "yt-playlist-report-vs-ytpla",
@@ -803,15 +983,21 @@ index 0000000..9e0687d
 +            />,
 +        );
 +
-+        expect(screen.getByText("8")).toBeInTheDocument();
-+        expect(screen.getByText("6")).toBeInTheDocument();
++        expect(screen.getAllByText("8").length).toBeGreaterThan(0);
++        expect(screen.getAllByText("6").length).toBeGreaterThan(0);
 +        expect(screen.getByText("75%")).toBeInTheDocument();
++        expect(screen.getByText("50% yes")).toBeInTheDocument();
 +        expect(screen.getByText("Invalid URL")).toBeInTheDocument();
 +        expect(screen.getByText("Fetch failed")).toBeInTheDocument();
 +        expect(
 +            screen.getByText("yt-playlist-report-vs-ytpla"),
 +        ).toBeInTheDocument();
-+        expect(screen.getByText("3")).toBeInTheDocument();
++        expect(screen.getAllByText("3").length).toBeGreaterThan(0);
++        expect(screen.getByText("study-course")).toBeInTheDocument();
++        expect(screen.getByText("duration-speed")).toBeInTheDocument();
++        expect(screen.getByText("schedule-calendar")).toBeInTheDocument();
++        expect(screen.getByText("producthunt")).toBeInTheDocument();
++        expect(screen.getByText("67%")).toBeInTheDocument();
 +    });
 +});
 diff --git a/packages/server/app/routes/cache.tsx b/packages/server/app/routes/cache.tsx
@@ -868,19 +1054,18 @@ index 358af1e..a341eb4 100644
          request,
          context.cloudflare.env,
 diff --git a/packages/server/app/routes/dashboard.tsx b/packages/server/app/routes/dashboard.tsx
-index aa4fd94..691bb7f 100644
+index aa4fd94..80e4267 100644
 --- a/packages/server/app/routes/dashboard.tsx
 +++ b/packages/server/app/routes/dashboard.tsx
-@@ -47,6 +47,8 @@ import SearchFilterBadges from "~/components/SearchFilterBadges";
+@@ -47,6 +47,7 @@ import SearchFilterBadges from "~/components/SearchFilterBadges";
  import { TimeSeriesCard } from "./resources.timeseries";
  import { StatsCard } from "./resources.stats";
  import { requireAuth } from "~/lib/auth";
-+import { PlaylistMeasurementsCard } from "./resources.playlist-measurements";
 +import { SeoFunnelCard } from "./resources.seo-funnel";
  
  export const meta: MetaFunction = () => {
      return [
-@@ -251,6 +253,24 @@ export default function Dashboard() {
+@@ -251,6 +252,15 @@ export default function Dashboard() {
                          timezone={userTimezone}
                      />
                  </div>
@@ -893,146 +1078,15 @@ index aa4fd94..691bb7f 100644
 +                        timezone={userTimezone}
 +                    />
 +                </div>
-+                <div className="w-full mb-4">
-+                    <PlaylistMeasurementsCard
-+                        key={`${data.siteId}:${data.interval}:${userTimezone}:${JSON.stringify(data.filters)}`}
-+                        siteId={data.siteId}
-+                        interval={data.interval}
-+                        filters={data.filters}
-+                        timezone={userTimezone}
-+                    />
-+                </div>
                  <div className="grid md:grid-cols-2 gap-4 mb-4">
                      <PathsCard
                          siteId={data.siteId}
-diff --git a/packages/server/app/routes/resources.playlist-measurements.tsx b/packages/server/app/routes/resources.playlist-measurements.tsx
-new file mode 100644
-index 0000000..e8a15ae
---- /dev/null
-+++ b/packages/server/app/routes/resources.playlist-measurements.tsx
-@@ -0,0 +1,116 @@
-+import { useEffect, useState } from "react";
-+import { useFetcher } from "react-router";
-+import type { LoaderFunctionArgs } from "react-router";
-+
-+import type { PlaylistMeasurement } from "~/analytics/query";
-+import PaginationButtons from "~/components/PaginationButtons";
-+import {
-+    Card,
-+    CardContent,
-+    CardHeader,
-+    CardTitle,
-+} from "~/components/ui/card";
-+import type { SearchFilters } from "~/lib/types";
-+import {
-+    getFiltersFromSearchParams,
-+    paramsFromUrl,
-+} from "~/lib/utils";
-+import { requireAuth } from "~/lib/auth";
-+
-+export async function loader({ context, request }: LoaderFunctionArgs) {
-+    await requireAuth(request, context.cloudflare.env);
-+    const { analyticsEngine } = context;
-+    const { interval, site, page = 1 } = paramsFromUrl(request.url);
-+    const url = new URL(request.url);
-+    const timezone = url.searchParams.get("timezone") || "UTC";
-+    const filters = getFiltersFromSearchParams(url.searchParams);
-+
-+    return {
-+        playlistMeasurements:
-+            await analyticsEngine.getPlaylistMeasurements(
-+                site,
-+                interval,
-+                timezone,
-+                filters,
-+                Number(page),
-+            ),
-+        page: Number(page),
-+    };
-+}
-+
-+export function PlaylistMeasurementsTable({
-+    rows,
-+}: {
-+    rows: PlaylistMeasurement[];
-+}) {
-+    return (
-+        <table className="w-full text-sm">
-+            <thead>
-+                <tr className="border-b text-left">
-+                    <th className="pb-2 font-medium">Playlist ID</th>
-+                    <th className="pb-2 text-right font-medium">
-+                        Measurements
-+                    </th>
-+                </tr>
-+            </thead>
-+            <tbody>
-+                {rows.map(({ playlistId, measurements }) => (
-+                    <tr key={playlistId} className="border-b last:border-0">
-+                        <td className="py-2 pr-4">
-+                            <a
-+                                className="text-primary underline-offset-4 hover:underline"
-+                                href={`https://www.youtube.com/playlist?list=${encodeURIComponent(playlistId)}`}
-+                                target="_blank"
-+                                rel="noreferrer"
-+                            >
-+                                {playlistId}
-+                            </a>
-+                        </td>
-+                        <td className="py-2 text-right">{measurements}</td>
-+                    </tr>
-+                ))}
-+            </tbody>
-+        </table>
-+    );
-+}
-+
-+export function PlaylistMeasurementsCard({
-+    siteId,
-+    interval,
-+    filters,
-+    timezone,
-+}: {
-+    siteId: string;
-+    interval: string;
-+    filters: SearchFilters;
-+    timezone: string;
-+}) {
-+    const dataFetcher = useFetcher<typeof loader>();
-+    const rows = dataFetcher.data?.playlistMeasurements || [];
-+    const [page, setPage] = useState(1);
-+
-+    useEffect(() => {
-+        dataFetcher.submit(
-+            { site: siteId, interval, timezone, ...filters, page },
-+            { method: "get", action: "/resources/playlist-measurements" },
-+        );
-+        // dataFetcher is intentionally stable and omitted from dependencies.
-+        // eslint-disable-next-line react-hooks/exhaustive-deps
-+    }, [siteId, interval, filters, timezone, page]);
-+
-+    return (
-+        <Card className={dataFetcher.state === "loading" ? "opacity-60" : ""}>
-+            <CardHeader>
-+                <CardTitle>Playlist Measurements</CardTitle>
-+            </CardHeader>
-+            <CardContent>
-+                <PlaylistMeasurementsTable rows={rows} />
-+                <PaginationButtons
-+                    page={page}
-+                    hasMore={rows.length === 10}
-+                    handlePagination={setPage}
-+                />
-+            </CardContent>
-+        </Card>
-+    );
-+}
 diff --git a/packages/server/app/routes/resources.seo-funnel.tsx b/packages/server/app/routes/resources.seo-funnel.tsx
 new file mode 100644
-index 0000000..52e89eb
+index 0000000..786626a
 --- /dev/null
 +++ b/packages/server/app/routes/resources.seo-funnel.tsx
-@@ -0,0 +1,136 @@
+@@ -0,0 +1,300 @@
 +import { useEffect } from "react";
 +import { useFetcher } from "react-router";
 +import type { LoaderFunctionArgs } from "react-router";
@@ -1047,8 +1101,51 @@ index 0000000..52e89eb
 +    reportSubmits: 0,
 +    reportSuccesses: 0,
 +    reportErrors: { invalidUrl: 0, fetchFailed: 0 },
++    feedbackOpens: 0,
++    offerViews: 0,
++    feedbackSubmits: { yes: 0, no: 0 },
++    offerResponses: { yes: 0, maybe: 0, no: 0 },
++    useCases: [],
++    helpfulReasons: [],
++    missingReasons: [],
++    acquisitionSources: [],
 +    contentCtaClicks: [],
 +};
++
++function ResponseTable({
++    label,
++    responses,
++}: {
++    label: string;
++    responses: Array<{ slug: string; responses: number }>;
++}) {
++    return (
++        <table className="w-full text-sm">
++            <thead>
++                <tr className="border-b text-left">
++                    <th className="pb-2 font-medium">{label}</th>
++                    <th className="pb-2 text-right font-medium">Responses</th>
++                </tr>
++            </thead>
++            <tbody>
++                {responses.length ? (
++                    responses.map(({ slug, responses: count }) => (
++                        <tr key={slug} className="border-b last:border-0">
++                            <td className="py-2 pr-4">{slug}</td>
++                            <td className="py-2 text-right">{count}</td>
++                        </tr>
++                    ))
++                ) : (
++                    <tr>
++                        <td colSpan={2} className="py-3 text-muted-foreground">
++                            No responses yet
++                        </td>
++                    </tr>
++                )}
++            </tbody>
++        </table>
++    );
++}
 +
 +export async function loader({ context, request }: LoaderFunctionArgs) {
 +    await requireAuth(request, context.cloudflare.env);
@@ -1072,6 +1169,11 @@ index 0000000..52e89eb
 +    const completionRate = metrics.reportSubmits
 +        ? `${Math.round((metrics.reportSuccesses / metrics.reportSubmits) * 100)}%`
 +        : "—";
++    const priceIntentRate = metrics.offerViews
++        ? `${Math.round((metrics.offerResponses.yes / metrics.offerViews) * 100)}% yes`
++        : "—";
++    const feedbackResponses =
++        metrics.feedbackSubmits.yes + metrics.feedbackSubmits.no;
 +
 +    return (
 +        <div className="space-y-6">
@@ -1114,6 +1216,122 @@ index 0000000..52e89eb
 +                    </div>
 +                </div>
 +            </div>
++
++            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
++                <div>
++                    <dt className="text-sm text-muted-foreground">
++                        Feedback opens
++                    </dt>
++                    <dd className="text-2xl font-semibold">
++                        {metrics.feedbackOpens}
++                    </dd>
++                </div>
++                <div>
++                    <dt className="text-sm text-muted-foreground">
++                        Feedback responses
++                    </dt>
++                    <dd className="text-2xl font-semibold">
++                        {feedbackResponses}
++                    </dd>
++                </div>
++                <div>
++                    <dt className="text-sm text-muted-foreground">
++                        Offer views
++                    </dt>
++                    <dd className="text-2xl font-semibold">
++                        {metrics.offerViews}
++                    </dd>
++                </div>
++                <div>
++                    <dt className="text-sm text-muted-foreground">
++                        Price intent
++                    </dt>
++                    <dd className="text-2xl font-semibold">
++                        {priceIntentRate}
++                    </dd>
++                    <div className="text-xs text-muted-foreground">
++                        {metrics.offerResponses.maybe} maybe ·{" "}
++                        {metrics.offerResponses.no} no
++                    </div>
++                </div>
++            </dl>
++
++            <div className="grid gap-6 lg:grid-cols-3">
++                <ResponseTable label="Use case" responses={metrics.useCases} />
++                <ResponseTable
++                    label="Useful feature"
++                    responses={metrics.helpfulReasons}
++                />
++                <ResponseTable
++                    label="Missing capability"
++                    responses={metrics.missingReasons}
++                />
++            </div>
++
++            <table className="w-full text-sm">
++                <thead>
++                    <tr className="border-b text-left">
++                        <th className="pb-2 font-medium">Acquisition source</th>
++                        <th className="pb-2 text-right font-medium">
++                            Visitors
++                        </th>
++                        <th className="pb-2 text-right font-medium">Reports</th>
++                        <th className="pb-2 text-right font-medium">
++                            Successes
++                        </th>
++                        <th className="pb-2 text-right font-medium">
++                            Completion
++                        </th>
++                        <th className="pb-2 text-right font-medium">
++                            Offer views
++                        </th>
++                        <th className="pb-2 text-right font-medium">
++                            Feedback
++                        </th>
++                    </tr>
++                </thead>
++                <tbody>
++                    {metrics.acquisitionSources.length ? (
++                        metrics.acquisitionSources.map((source) => (
++                            <tr
++                                key={source.source}
++                                className="border-b last:border-0"
++                            >
++                                <td className="py-2 pr-4">{source.source}</td>
++                                <td className="py-2 text-right">
++                                    {source.visitors}
++                                </td>
++                                <td className="py-2 text-right">
++                                    {source.reportSubmits}
++                                </td>
++                                <td className="py-2 text-right">
++                                    {source.reportSuccesses}
++                                </td>
++                                <td className="py-2 text-right">
++                                    {source.visitors
++                                        ? `${Math.round((source.reportSuccesses / source.visitors) * 100)}%`
++                                        : "—"}
++                                </td>
++                                <td className="py-2 text-right">
++                                    {source.offerViews}
++                                </td>
++                                <td className="py-2 text-right">
++                                    {source.feedbackSubmits}
++                                </td>
++                            </tr>
++                        ))
++                    ) : (
++                        <tr>
++                            <td
++                                colSpan={7}
++                                className="py-3 text-muted-foreground"
++                            >
++                                No attributed events yet
++                            </td>
++                        </tr>
++                    )}
++                </tbody>
++            </table>
 +
 +            <table className="w-full text-sm">
 +                <thead>

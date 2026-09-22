@@ -28,4 +28,14 @@ describe("client entry", () => {
       expect.anything()
     );
   });
+
+  it("moves browser-extension nodes into the body before hydration", async () => {
+    const extensionNode = document.createElement("browser-extension-root");
+    document.documentElement.append(extensionNode);
+
+    await import("./entry.client");
+
+    expect(extensionNode.parentElement).toBe(document.body);
+    extensionNode.remove();
+  });
 });

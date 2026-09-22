@@ -59,6 +59,7 @@ describe("KofiSupportModal", () => {
     await waitFor(() => {
       expect(Counterscale.trackPageview).toHaveBeenCalledWith({
         url: "/support/ko-fi/widget?source=landing",
+        referrer: window.location.origin,
       });
     });
   });
@@ -89,6 +90,7 @@ describe("KofiSupportModal", () => {
     await waitFor(() => {
       expect(Counterscale.trackPageview).toHaveBeenCalledWith({
         url: "/support/ko-fi/prompt?source=report",
+        referrer: window.location.origin,
       });
     });
     expect(
@@ -128,9 +130,11 @@ describe("KofiSupportModal", () => {
     expect(screen.getByTitle("Support YTPR on Ko-fi")).toBeTruthy();
     expect(Counterscale.trackPageview).toHaveBeenCalledWith({
       url: "/support/ko-fi/prompt-cta?source=report",
+      referrer: window.location.origin,
     });
     expect(Counterscale.trackPageview).toHaveBeenCalledWith({
       url: "/support/ko-fi/open?source=report",
+      referrer: window.location.origin,
     });
     expect(
       vi.mocked(Counterscale.trackPageview).mock.calls
@@ -192,6 +196,7 @@ describe("KofiSupportModal", () => {
     ).toBeTruthy();
     expect(Counterscale.trackPageview).toHaveBeenCalledWith({
       url: "/support/ko-fi/prompt-opt-out?source=report",
+      referrer: window.location.origin,
     });
   });
 
@@ -251,6 +256,7 @@ describe("KofiSupportModal", () => {
     });
     expect(Counterscale.trackPageview).toHaveBeenCalledWith({
       url: "/support/ko-fi/open?source=landing",
+      referrer: window.location.origin,
     });
 
     const directFallback = screen.getByRole("link", {
@@ -270,6 +276,7 @@ describe("KofiSupportModal", () => {
     fireEvent.click(directFallback);
     expect(Counterscale.trackPageview).toHaveBeenCalledWith({
       url: "/outbound/ko-fi?source=landing",
+      referrer: window.location.origin,
     });
   });
 
@@ -335,6 +342,7 @@ describe("KofiSupportModal", () => {
     fireEvent.click(fallback);
     expect(Counterscale.trackPageview).toHaveBeenCalledWith({
       url: "/outbound/ko-fi?source=report",
+      referrer: window.location.origin,
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Retry Ko-fi" }));
@@ -352,6 +360,7 @@ describe("KofiSupportModal", () => {
     await waitFor(() => {
       expect(Counterscale.trackPageview).toHaveBeenCalledWith({
         url: "/support/ko-fi/widget?source=landing",
+        referrer: window.location.origin,
       });
     });
 
