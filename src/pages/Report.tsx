@@ -1,8 +1,9 @@
-import React, { Suspense, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { usePlaylistDuration } from "@/api/PlaylistApi";
 import {
   useParams,
   useLoaderData,
+  useOutletContext,
   Await,
   type MetaFunction,
 } from "react-router";
@@ -29,6 +30,7 @@ import QRCode from "react-qr-code";
 import { queryClient } from "@/lib/query-client";
 import { loader as playlistLoader } from "@/api/PlaylistApi";
 import { pageMeta } from "@/lib/site";
+import type { ReportOutletContext } from "@/lib/report-context";
 import ReportFeedback from "@/components/ReportFeedback";
 
 export const getReportMeta = (playlistId = "playlist") =>
@@ -57,9 +59,16 @@ const PLAYBACK_SPEED_VALUES = [
 
 const PlaylistDuration: React.FC = () => {
   const { playlistId } = useParams<{ playlistId: string }>();
+  const { markReportReady } = useOutletContext<ReportOutletContext>();
   const { data } = usePlaylistDuration(playlistId!);
   const [values, setValues] = useState<number[]>([1, data?.videos.length || 1]);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+
+  useEffect(() => {
+    if (data?.videos) {
+      markReportReady();
+    }
+  }, [data?.videos, markReportReady]);
 
   if (!data || !data.videos) {
     return <div>No video details available</div>;
