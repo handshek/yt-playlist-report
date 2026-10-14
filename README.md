@@ -40,6 +40,13 @@ Generate comprehensive reports for YouTube playlists. Get insights on total dura
 4. Run the development server: `pnpm dev`
 5. Open `http://localhost:5001` in your browser
 
+## Verify the playlist report
+
+Run `pnpm test:e2e` for repeatable desktop and mobile browser checks. See the
+[browser verification guide](e2e/README.md) for browser installation, fixture
+coverage, screenshots, and traces. Run `pnpm test`, `pnpm lint`, and
+`pnpm test:seo` for the unit, lint, TypeScript, production-build, and SEO checks.
+
 ## 📈 Self-hosted analytics with Counterscale
 
 The app supports a patched, password-protected [Counterscale v3.4.1](https://github.com/benvinegar/counterscale/tree/v3.4.1) Worker on Cloudflare Free. Analytics remain disabled unless both public variables are present.

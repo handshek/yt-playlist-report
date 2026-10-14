@@ -1,5 +1,7 @@
 import { useSuspenseQuery, type QueryClient } from "@tanstack/react-query";
 import { LoaderFunction, LoaderFunctionArgs } from "react-router";
+import { isPlaylistId } from "@/lib/playlist-id";
+export { parseDuration, formatDuration } from "@/lib/duration";
 
 // Interfaces
 export interface PlaylistResponse {
@@ -34,9 +36,9 @@ interface Thumbnail {
 }
 
 interface Thumbnails {
-  default: Thumbnail;
-  medium: Thumbnail;
-  high: Thumbnail;
+  default?: Thumbnail;
+  medium?: Thumbnail;
+  high?: Thumbnail;
   standard?: Thumbnail;
   maxres?: Thumbnail;
 }
@@ -159,30 +161,6 @@ const writeCachedPlaylistReport = (
   }
 };
 
-// Helper functions
-export const parseDuration = (duration: string): number => {
-  const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-  const hours = parseInt(match?.[1] ?? "0") || 0;
-  const minutes = parseInt(match?.[2] ?? "0") || 0;
-  const seconds = parseInt(match?.[3] ?? "0") || 0;
-  return hours * 3600 + minutes * 60 + seconds;
-};
-
-export const formatDuration = (seconds: number): string => {
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
-
-  const parts = [];
-  if (days > 0) parts.push(`${days}d`);
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (remainingSeconds > 0) parts.push(`${remainingSeconds}s`);
-
-  return parts.join(" ");
-};
-
 // API functions
 const PUBLIC_API_ERRORS = new Set([
   "forbidden",
@@ -249,8 +227,8 @@ export const fetchPlaylistDetails = async (
 
 export const loadPlaylist = (queryClient: QueryClient): LoaderFunction => {
   return async ({ params }: LoaderFunctionArgs) => {
-    if (!params.playlistId) {
-      throw new Error("Playlist ID is required");
+    if (!isPlaylistId(params.playlistId)) {
+      throw new Error("invalid_request");
     }
 
     try {

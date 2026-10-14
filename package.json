@@ -9,6 +9,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview --outDir build/client",
     "test": "vitest run",
+    "test:e2e": "tsc -p tsconfig.e2e.json && playwright test",
     "test:seo": "pnpm build && node scripts/verify-seo-build.mjs && node analytics/counterscale/verify-seo-content-slugs.mjs"
   },
   "dependencies": {
@@ -37,6 +38,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@react-router/dev": "7.18.2",
     "@testing-library/react": "^15.0.7",
     "@types/gapi.youtube": "^3.0.40",

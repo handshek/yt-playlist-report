@@ -2,28 +2,43 @@ import { FormEvent, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Link, useNavigate, useNavigation } from "react-router";
 import { Button } from "./ui/button";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchPlaylistDetails } from "@/api/PlaylistApi";
 import { Loader, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { trackSeoEvent } from "@/lib/seo-events";
+import { isPlaylistId } from "@/lib/playlist-id";
+
+const YOUTUBE_HOSTS = new Set([
+  "youtube.com",
+  "www.youtube.com",
+  "m.youtube.com",
+  "music.youtube.com",
+  "youtu.be",
+  "www.youtu.be",
+  "youtube-nocookie.com",
+  "www.youtube-nocookie.com",
+]);
 
 const Form = () => {
   const [url, setUrl] = useState("");
   const navigate = useNavigate();
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
 
   const playlistMutation = useMutation({
     mutationFn: fetchPlaylistDetails,
     onSuccess: (data) => {
+      queryClient.setQueryData(["playlistDetails", data.id], data);
       trackSeoEvent({ name: "report_success" });
-      navigate(`playlist/${data.id}`, { state: { playlistDetails: data } });
+      navigate(`/playlist/${data.id}`);
     },
     onError: (error) => {
       trackSeoEvent({ name: "report_error", reason: "fetch_failed" });
-      setUrl("");
       toast.error("Error generating report", {
-        description: "Make sure the playlist exists and is public",
+        description: error.message === "playlist_unavailable"
+          ? "Make sure the playlist exists and is public"
+          : "The playlist could not be loaded. Please try again.",
         richColors: true,
       });
       console.error("Error fetching playlist details:", error);
@@ -38,19 +53,17 @@ const Form = () => {
     let playlistId;
 
     try {
-      playlistId = new URL(url).searchParams.get("list");
+      const parsedUrl = new URL(url);
+      playlistId = parsedUrl.searchParams.get("list");
+      if (
+        !["http:", "https:"].includes(parsedUrl.protocol) ||
+        !YOUTUBE_HOSTS.has(parsedUrl.hostname) ||
+        !isPlaylistId(playlistId)
+      ) {
+        throw new Error("Invalid playlist URL");
+      }
     } catch (error) {
       trackSeoEvent({ name: "report_error", reason: "invalid_url" });
-      toast.error("Invalid playlist URL", {
-        description: "Please enter a valid playlist URL",
-        richColors: true,
-      });
-      return;
-    }
-
-    if (!url.length || !playlistId) {
-      trackSeoEvent({ name: "report_error", reason: "invalid_url" });
-      setUrl("");
       toast.error("Invalid playlist URL", {
         description: "Please enter a valid playlist URL",
         richColors: true,
@@ -73,6 +86,7 @@ const Form = () => {
         >
           <Input
             type="url"
+            aria-label="YouTube playlist URL"
             placeholder="Enter YouTube playlist URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}

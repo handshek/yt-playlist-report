@@ -8,9 +8,10 @@ import {
   type FunctionRequest,
   type FunctionResponse,
 } from "./shared/http";
+import { parseDuration, formatDuration } from "../../src/lib/duration";
+import { isPlaylistId } from "../../src/lib/playlist-id";
 
 const YOUTUBE_API_BASE_URL = "https://www.googleapis.com/youtube/v3";
-const PLAYLIST_ID_PATTERN = /^[A-Za-z0-9_-]{10,150}$/;
 const UPSTREAM_TIMEOUT_MS = 10_000;
 
 type PlaylistResource = "details" | "report";
@@ -46,8 +47,7 @@ const parseRequestBody = (body: string | null | undefined): RequestBody | null =
     const resource = parsed.resource;
 
     if (
-      typeof playlistId !== "string" ||
-      !PLAYLIST_ID_PATTERN.test(playlistId) ||
+      !isPlaylistId(playlistId) ||
       (resource !== "details" && resource !== "report")
     ) {
       return null;
@@ -143,30 +143,6 @@ const sanitizeVideo = (value: unknown) => {
       duration: stringValue(contentDetails.duration),
     },
   };
-};
-
-const parseDuration = (duration: string) => {
-  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  return (
-    Number(match?.[1] ?? 0) * 3_600 +
-    Number(match?.[2] ?? 0) * 60 +
-    Number(match?.[3] ?? 0)
-  );
-};
-
-const formatDuration = (seconds: number) => {
-  const days = Math.floor(seconds / 86_400);
-  const hours = Math.floor((seconds % 86_400) / 3_600);
-  const minutes = Math.floor((seconds % 3_600) / 60);
-  const remainingSeconds = seconds % 60;
-  const parts: string[] = [];
-
-  if (days > 0) parts.push(`${days}d`);
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (remainingSeconds > 0) parts.push(`${remainingSeconds}s`);
-
-  return parts.join(" ");
 };
 
 const youtubeRequest = async (

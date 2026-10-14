@@ -5,6 +5,10 @@ import {
   useLoaderData,
   useOutletContext,
   Await,
+  Link,
+  useAsyncError,
+  useRevalidator,
+  useRouteError,
   type MetaFunction,
 } from "react-router";
 import {
@@ -32,6 +36,7 @@ import { loader as playlistLoader } from "@/api/PlaylistApi";
 import { pageMeta } from "@/lib/site";
 import type { ReportOutletContext } from "@/lib/report-context";
 import ReportFeedback from "@/components/ReportFeedback";
+import { Button } from "@/components/ui/button";
 
 export const getReportMeta = (playlistId = "playlist") =>
   pageMeta({
@@ -80,14 +85,15 @@ const PlaylistDuration: React.FC = () => {
     0
   );
   const speedAdjustedDuration = Math.round(totalDuration / playbackSpeed);
-  const avgDuration = ~~(speedAdjustedDuration / selectedVideos.length);
+  const avgDuration = selectedVideos.length
+    ? Math.floor(speedAdjustedDuration / selectedVideos.length)
+    : 0;
 
   const handleSpeedChange = (value: string) => {
     setPlaybackSpeed(parseFloat(value));
   };
 
-  // Create columns with the playlistId
-  const columns = createColumns(playlistId!);
+  const columns = createColumns(playlistId!, values[0]);
 
   return (
     <>
@@ -106,12 +112,12 @@ const PlaylistDuration: React.FC = () => {
                   <Zap className="w-3 h-3 xl:w-4 xl:h-4 mr-1" /> Speed:
                 </span>
                 <Select onValueChange={handleSpeedChange} defaultValue="1.0">
-                  <SelectTrigger className="w-fit min-w-[60px] py-0.5 px-1.5 h-fit bg-transparent text-sm lg:text-base bg-gray-200 hover:bg-gray-300 ">
+                  <SelectTrigger aria-label="Playback speed" className="w-fit min-w-[60px] py-0.5 px-1.5 h-fit bg-transparent text-sm lg:text-base bg-gray-200 hover:bg-gray-300 ">
                     <SelectValue placeholder="Select speed" />
                   </SelectTrigger>
                   <SelectContent align="end">
                     {PLAYBACK_SPEED_VALUES.map((value) => (
-                      <SelectItem value={value}>{`${value}`}</SelectItem>
+                      <SelectItem key={value} value={value}>{`${value}`}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -233,12 +239,62 @@ const ReportSkeleton: React.FC = () => {
   );
 };
 
+function ReportLoadError({ error }: { error: unknown }) {
+  const revalidator = useRevalidator();
+  const reason = error instanceof Error ? error.message : "";
+  const invalid = reason === "invalid_request";
+  const unavailable = reason === "playlist_unavailable";
+
+  return (
+    <div role="alert" className="mx-auto max-w-xl space-y-4 py-16 text-center">
+      <h1 className="text-2xl font-bold">
+        {invalid
+          ? "Invalid playlist link"
+          : unavailable
+          ? "Playlist unavailable"
+          : "Unable to load this report"}
+      </h1>
+      <p className="text-neutral-600">
+        {invalid
+          ? "This link does not contain a valid playlist ID. Enter a YouTube playlist URL to generate a report."
+          : unavailable
+          ? "Make sure the playlist exists and is public, then try again."
+          : "We could not load the playlist details. Please try again."}
+      </p>
+      <div className="flex flex-wrap justify-center gap-3">
+        {!invalid && (
+          <Button
+            onClick={() => void revalidator.revalidate()}
+            disabled={revalidator.state === "loading"}
+          >
+            {revalidator.state === "loading" ? "Trying again..." : "Try again"}
+          </Button>
+        )}
+        <Button asChild variant="outline">
+          <Link to="/">Try another playlist</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ReportDataError() {
+  return <ReportLoadError error={useAsyncError()} />;
+}
+
+export function ErrorBoundary() {
+  return (
+    <main className="container min-h-[60vh]">
+      <ReportLoadError error={useRouteError()} />
+    </main>
+  );
+}
+
 const Report: React.FC = () => {
   const { playlistDetails, videoDetails } = useLoaderData() as LoaderData;
 
   if (!playlistDetails) {
-    console.log("stop it!!");
-    return <div>Error: Failed to load playlist data</div>;
+    return <ReportLoadError error={new Error("playlist_unavailable")} />;
   }
 
   return (
@@ -249,7 +305,7 @@ const Report: React.FC = () => {
           <Suspense fallback={<ReportSkeleton />}>
             <Await
               resolve={videoDetails}
-              errorElement={<div>Error loading playlist details</div>}
+              errorElement={<ReportDataError />}
             >
               <>
                 <PlaylistDuration />

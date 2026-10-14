@@ -61,6 +61,14 @@ const localFunctionApi = (
         return
       }
 
+      let body: string
+      try {
+        body = await readRequestBody(request)
+      } catch (error) {
+        if (!request.aborted) next(error)
+        return
+      }
+
       const result = await functionHandler({
         httpMethod: request.method,
         headers: Object.fromEntries(
@@ -69,7 +77,7 @@ const localFunctionApi = (
             Array.isArray(value) ? value.join(",") : value,
           ])
         ),
-        body: await readRequestBody(request),
+        body,
       })
       response.statusCode = result.statusCode
 

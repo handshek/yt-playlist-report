@@ -42,22 +42,28 @@ export function DataTableToolbar<TData>({
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
+                disabled={totalVideos <= 1}
                 className="flex gap-1.5 items-center border-[1px] border-dashed border-neutral-300"
               >
                 <Settings2 className="w-4 h-4" />
                 Select Range
               </Button>
             </PopoverTrigger>
-            <PopoverContent side="bottom" align="start" className="min-w-96">
+            <PopoverContent
+              side="bottom"
+              align="start"
+              collisionPadding={16}
+              className="w-96 max-w-[calc(100vw-2rem)]"
+            >
               <div className="py-8">
                 <DualRangeSlider
                   label={(value) => `${value}`}
-                  defaultValue={rangeValue}
-                  onValueCommit={onRangeChange}
+                  value={rangeValue}
+                  onValueChange={onRangeChange}
                   min={1}
                   max={totalVideos}
                   step={1}
-                  minStepsBetweenThumbs={1}
+                  minStepsBetweenThumbs={0}
                 />
               </div>
             </PopoverContent>

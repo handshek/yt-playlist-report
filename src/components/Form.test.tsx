@@ -70,14 +70,14 @@ describe("playlist report form analytics", () => {
 
   it("records a submit and one success around a successful report", async () => {
     vi.mocked(fetchPlaylistDetails).mockResolvedValue({
-      id: "PLabc_123",
+      id: "PLabc_12345",
     } as never);
     renderForm();
 
-    submitUrl("https://youtube.com/playlist?list=PLabc_123");
+    submitUrl("https://youtube.com/playlist?list=PLabc_12345");
 
     expect(await screen.findByText("Playlist report")).toBeTruthy();
-    expect(fetchPlaylistDetails).toHaveBeenCalledWith("PLabc_123");
+    expect(fetchPlaylistDetails).toHaveBeenCalledWith("PLabc_12345");
     expect(trackSeoEvent).toHaveBeenNthCalledWith(1, { name: "report_submit" });
     expect(trackSeoEvent).toHaveBeenNthCalledWith(2, { name: "report_success" });
     expect(trackSeoEvent).toHaveBeenCalledTimes(2);
@@ -89,7 +89,7 @@ describe("playlist report form analytics", () => {
     );
     renderForm();
 
-    submitUrl("https://youtube.com/playlist?list=PLabc_123");
+    submitUrl("https://youtube.com/playlist?list=PLabc_12345");
 
     await waitFor(() => {
       expect(trackSeoEvent).toHaveBeenLastCalledWith({

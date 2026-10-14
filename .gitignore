@@ -33,3 +33,8 @@ docs/
 
 # Local Netlify folder
 .netlify
+
+# Browser verification artifacts
+test-results/
+playwright-report/
+.audit/

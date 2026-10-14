@@ -12,14 +12,17 @@ const formatDate = (timeStr: string): string => {
   return date.toLocaleString("en-US", options);
 };
 
-const createColumns = (playlistId: string): ColumnDef<VideoItem>[] => [
+const createColumns = (
+  playlistId: string,
+  startPosition = 1
+): ColumnDef<VideoItem>[] => [
   {
     id: "position",
-    accessorFn: (_row, index) => index + 1,
+    accessorFn: (_row, index) => index + startPosition,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Position" />
     ),
-    cell: ({ row }) => <div>{String(row.index + 1)}</div>,
+    cell: ({ row }) => <div>{row.getValue("position")}</div>,
     enableHiding: false,
   },
   {
@@ -28,40 +31,47 @@ const createColumns = (playlistId: string): ColumnDef<VideoItem>[] => [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Video" />
     ),
-    cell: ({ row }) => (
-      <div className="flex gap-4 items-start py-2">
-        <div className="rounded-md shadow-md w-24 h-[54px] flex-shrink-0 overflow-clip">
-          <a
-            href={`https://youtube.com/watch?v=${row.original.id}&list=${playlistId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <img
-              src={row.original.snippet.thumbnails.high.url}
-              alt={row.original.snippet.title}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          </a>
+    cell: ({ row }) => {
+      const thumbnails = row.original.snippet.thumbnails;
+      const thumbnail =
+        thumbnails.high ?? thumbnails.medium ?? thumbnails.default;
+      return (
+        <div className="flex gap-4 items-start py-2">
+          {thumbnail && (
+            <div className="rounded-md shadow-md w-24 h-[54px] flex-shrink-0 overflow-clip">
+              <a
+                href={`https://youtube.com/watch?v=${row.original.id}&list=${playlistId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img
+                  src={thumbnail.url}
+                  alt={row.original.snippet.title}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              </a>
+            </div>
+          )}
+          <div>
+            <a
+              href={`https://youtube.com/watch?v=${row.original.id}&list=${playlistId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 font-medium hover:underline line-clamp-2 flex-grow"
+              title={row.original.snippet.title}
+            >
+              {row.original.snippet.title.length > 40
+                ? row.original.snippet.title.slice(0, 40) + "..."
+                : row.original.snippet.title}
+            </a>
+            <span className="text-gray-500">
+              {row.original.snippet.channelTitle}
+            </span>
+          </div>
         </div>
-        <div>
-          <a
-            href={`https://youtube.com/watch?v=${row.original.id}&list=${playlistId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 font-medium hover:underline line-clamp-2 flex-grow"
-            title={row.original.snippet.title}
-          >
-            {row.original.snippet.title.length > 40
-              ? row.original.snippet.title.slice(0, 40) + "..."
-              : row.original.snippet.title}
-          </a>
-          <span className="text-gray-500">
-            {row.original.snippet.channelTitle}
-          </span>
-        </div>
-      </div>
-    ),
+      );
+    },
     enableHiding: false,
   },
   {
