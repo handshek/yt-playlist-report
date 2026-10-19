@@ -8,6 +8,7 @@ import { Loader, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { trackSeoEvent } from "@/lib/seo-events";
 import { isPlaylistId } from "@/lib/playlist-id";
+import { writePlaylistCache } from "@/lib/playlist-cache";
 
 const YOUTUBE_HOSTS = new Set([
   "youtube.com",
@@ -30,6 +31,7 @@ const Form = () => {
     mutationFn: fetchPlaylistDetails,
     onSuccess: (data) => {
       queryClient.setQueryData(["playlistDetails", data.id], data);
+      writePlaylistCache("details", data.id, data);
       trackSeoEvent({ name: "report_success" });
       navigate(`/playlist/${data.id}`);
     },

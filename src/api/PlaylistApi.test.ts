@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
 import {
   createPlaylistDetailsQuery,
+  createPlaylistInfoQuery,
   fetchPlaylistDetails,
+  refreshPlaylist,
 } from "./PlaylistApi";
+import { writePlaylistCache } from "@/lib/playlist-cache";
 
 describe("playlist API client", () => {
   afterEach(() => {
@@ -73,5 +77,60 @@ describe("playlist API client", () => {
     await expect(fetchPlaylistDetails("PLabc_12345")).rejects.toThrow(
       "upstream_unavailable"
     );
+  });
+
+  it("reuses cached playlist details without another request", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "PLabc_12345",
+          title: "Test playlist",
+          description: "",
+          thumbnails: {},
+        })
+      )
+    );
+    const query = createPlaylistInfoQuery("PLabc_12345");
+
+    await expect(query.queryFn()).resolves.toMatchObject({
+      title: "Test playlist",
+    });
+    await expect(query.queryFn()).resolves.toMatchObject({
+      title: "Test playlist",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses cached report data across query instances", async () => {
+    const report = { videos: [], duration: "", avgDuration: "" };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(report)));
+
+    await createPlaylistDetailsQuery("PLabc_12345").queryFn();
+    await createPlaylistDetailsQuery("PLabc_12345").queryFn();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fetches fresh data after a refresh clears the cache", async () => {
+    const details = {
+      id: "PLabc_12345",
+      title: "Cached playlist",
+      description: "",
+      thumbnails: {},
+    };
+    writePlaylistCache("details", "PLabc_12345", details);
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ ...details, title: "Fresh playlist" })));
+    const queryClient = new QueryClient();
+
+    refreshPlaylist(queryClient, "PLabc_12345");
+
+    await expect(
+      createPlaylistInfoQuery("PLabc_12345").queryFn()
+    ).resolves.toMatchObject({ title: "Fresh playlist" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
