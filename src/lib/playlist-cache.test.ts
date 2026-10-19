@@ -4,7 +4,7 @@ import {
   PLAYLIST_CACHE_TTL_MS,
   clearAllPlaylistCache,
   clearPlaylistCache,
-  getPlaylistCacheSavedAt,
+  getPlaylistReportSavedAt,
   readPlaylistCache,
   writePlaylistCache,
 } from "./playlist-cache";
@@ -105,16 +105,18 @@ describe("playlist cache", () => {
     expect(window.localStorage.length).toBe(0);
   });
 
-  it("reports the most recent write time", () => {
+  it("reports the report's own write time, ignoring fresher details", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
-    writePlaylistCache("details", "PLabc_12345", { title: "A" });
-
-    vi.advanceTimersByTime(5_000);
     writePlaylistCache("report", "PLabc_12345", { videos: [] });
 
-    expect(getPlaylistCacheSavedAt("PLabc_12345")).toBe(Date.now());
-    expect(getPlaylistCacheSavedAt("PLmissing_123")).toBeNull();
+    vi.advanceTimersByTime(5_000);
+    writePlaylistCache("details", "PLabc_12345", { title: "A" });
+    writePlaylistCache("details", "PLdetailsOnly_1", { title: "B" });
+
+    expect(getPlaylistReportSavedAt("PLabc_12345")).toBe(Date.now() - 5_000);
+    expect(getPlaylistReportSavedAt("PLmissing_123")).toBeNull();
+    expect(getPlaylistReportSavedAt("PLdetailsOnly_1")).toBeNull();
   });
 
   it("does not throw when storage rejects a write", () => {
@@ -125,5 +127,26 @@ describe("playlist cache", () => {
     expect(writePlaylistCache("details", "PLabc_12345", { title: "A" })).toBe(
       false
     );
+  });
+
+  it("frees stored entries and retries when storage is full", () => {
+    writePlaylistCache("details", "PLabc_12345", { title: "A" });
+
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(
+      (key: string, value: string) => {
+        if (window.localStorage.length >= 1) {
+          throw new Error("QuotaExceededError");
+        }
+
+        originalSetItem.call(window.localStorage, key, value);
+      }
+    );
+
+    expect(writePlaylistCache("report", "PLother_1234", { videos: [] })).toBe(
+      true
+    );
+    expect(readPlaylistCache("report", "PLother_1234")).toEqual({ videos: [] });
+    expect(readPlaylistCache("details", "PLabc_12345")).toBeNull();
   });
 });

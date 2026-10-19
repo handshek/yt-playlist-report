@@ -32,6 +32,21 @@ test("refreshes a cached report on demand", async ({ page, api }) => {
   expect(api.requests.filter((request) => request.resource === "report")).toHaveLength(2);
 });
 
+test("keeps Refresh disabled until the refreshed report finishes", async ({ page, api }) => {
+  await generateReport(page);
+  await expectSummary(page, "10m", "2m 30s", "4");
+  let releaseReport!: () => void;
+  api.holdReport = new Promise<void>((resolve) => { releaseReport = resolve; });
+  try {
+    await page.getByRole("button", { name: "Refresh playlist report" }).click();
+    await expect(page.getByRole("button", { name: "Refresh playlist report" })).toBeDisabled();
+  } finally {
+    releaseReport();
+  }
+  await expect(page.getByRole("button", { name: "Refresh playlist report" })).toBeEnabled();
+  await expectSummary(page, "10m", "2m 30s", "4");
+});
+
 test("commits the first keyboard range change and keeps the selected positions", async ({ page }) => {
   await generateReport(page);
   await expectSummary(page, "10m", "2m 30s", "4");

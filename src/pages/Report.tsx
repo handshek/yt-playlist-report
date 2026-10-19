@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useState } from "react";
+import { useIsFetching } from "@tanstack/react-query";
 import { usePlaylistDuration, refreshPlaylist } from "@/api/PlaylistApi";
 import {
   useParams,
@@ -32,7 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { logoIcon } from "@/assets";
 import QRCode from "react-qr-code";
 import { queryClient } from "@/lib/query-client";
-import { getPlaylistCacheSavedAt } from "@/lib/playlist-cache";
+import { getPlaylistReportSavedAt } from "@/lib/playlist-cache";
 import { loader as playlistLoader } from "@/api/PlaylistApi";
 import { pageMeta } from "@/lib/site";
 import type { ReportOutletContext } from "@/lib/report-context";
@@ -167,11 +168,11 @@ const PlaylistDuration: React.FC = () => {
 
 const PlaylistInfo: React.FC<{
   details: PlaylistDetails;
+  updatedAt: number | null;
   onRefresh: () => void;
   refreshing: boolean;
-}> = ({ details, onRefresh, refreshing }) => {
-  const updatedAt = getPlaylistCacheSavedAt(details.id);
-
+  disabled: boolean;
+}> = ({ details, updatedAt, onRefresh, refreshing, disabled }) => {
   return (
     <div className="w-full flex flex-col justify-between items-start md:flex-row lg:items-end gap-5">
       <div className="flex flex-col gap-1 pl-2 border-l-4 border-red-600 order-2 md:order-1">
@@ -200,7 +201,7 @@ const PlaylistInfo: React.FC<{
             variant="outline"
             size="sm"
             onClick={onRefresh}
-            disabled={refreshing}
+            disabled={disabled}
             aria-label="Refresh playlist report"
             title="Reports stay cached for 24 hours. Refresh to fetch the latest data now."
           >
@@ -318,7 +319,16 @@ export function ErrorBoundary() {
 const Report: React.FC = () => {
   const { playlistDetails, videoDetails } = useLoaderData() as LoaderData;
   const revalidator = useRevalidator();
-  const refreshing = revalidator.state !== "idle";
+  const [refreshRequested, setRefreshRequested] = useState(false);
+  const reportFetching =
+    useIsFetching({ queryKey: ["playlist", playlistDetails?.id] }) > 0;
+  const busy = revalidator.state !== "idle" || reportFetching;
+
+  useEffect(() => {
+    if (refreshRequested && !busy) {
+      setRefreshRequested(false);
+    }
+  }, [refreshRequested, busy]);
 
   if (!playlistDetails) {
     return <ReportLoadError error={new Error("playlist_unavailable")} />;
@@ -326,6 +336,7 @@ const Report: React.FC = () => {
 
   const handleRefresh = () => {
     refreshPlaylist(queryClient, playlistDetails.id);
+    setRefreshRequested(true);
     void revalidator.revalidate();
   };
 
@@ -335,8 +346,10 @@ const Report: React.FC = () => {
         <div className="container mx-auto mt-8 rounded-lg">
           <PlaylistInfo
             details={playlistDetails}
+            updatedAt={getPlaylistReportSavedAt(playlistDetails.id)}
             onRefresh={handleRefresh}
-            refreshing={refreshing}
+            refreshing={refreshRequested}
+            disabled={busy || refreshRequested}
           />
           <Suspense fallback={<ReportSkeleton />}>
             <Await

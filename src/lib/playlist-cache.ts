@@ -66,19 +66,24 @@ const listCacheEntries = (storage: Storage): PlaylistCacheIndexEntry[] => {
   return entries;
 };
 
-const evictCacheEntries = (storage: Storage) => {
-  const entries = listCacheEntries(storage).sort(
-    (left, right) =>
-      left.savedAt - right.savedAt || left.key.localeCompare(right.key)
-  );
+const evictCacheEntries = (
+  storage: Storage,
+  incoming: { key: string; bytes: number }
+) => {
+  const entries = listCacheEntries(storage)
+    .filter((entry) => entry.key !== incoming.key)
+    .sort(
+      (left, right) =>
+        left.savedAt - right.savedAt || left.key.localeCompare(right.key)
+    );
 
   let bytes = entries.reduce((total, entry) => total + entry.bytes, 0);
   let count = entries.length;
 
   for (const entry of entries) {
     if (
-      count <= PLAYLIST_CACHE_MAX_ENTRIES &&
-      bytes <= PLAYLIST_CACHE_MAX_BYTES
+      count + 1 <= PLAYLIST_CACHE_MAX_ENTRIES &&
+      bytes + incoming.bytes <= PLAYLIST_CACHE_MAX_BYTES
     ) {
       break;
     }
@@ -86,6 +91,12 @@ const evictCacheEntries = (storage: Storage) => {
     storage.removeItem(entry.key);
     bytes -= entry.bytes;
     count -= 1;
+  }
+};
+
+const dropAllCacheEntries = (storage: Storage) => {
+  for (const entry of listCacheEntries(storage)) {
+    storage.removeItem(entry.key);
   }
 };
 
@@ -161,15 +172,23 @@ export const writePlaylistCache = <T>(
 
   try {
     const serialized = JSON.stringify(envelope);
-    if (key.length + serialized.length > PLAYLIST_CACHE_MAX_BYTES) {
+    const bytes = key.length + serialized.length;
+    if (bytes > PLAYLIST_CACHE_MAX_BYTES) {
       return false;
     }
 
+    evictCacheEntries(storage, { key, bytes });
     storage.setItem(key, serialized);
-    evictCacheEntries(storage);
     return true;
   } catch {
-    return false;
+    // Remaining failures are usually a full store; drop our entries and retry.
+    try {
+      dropAllCacheEntries(storage);
+      storage.setItem(key, JSON.stringify(envelope));
+      return true;
+    } catch {
+      return false;
+    }
   }
 };
 
@@ -204,10 +223,8 @@ export const clearAllPlaylistCache = (): void => {
   }
 };
 
-export const getPlaylistCacheSavedAt = (playlistId: string): number | null => {
-  const timestamps = (["details", "report"] as const)
-    .map((kind) => readCacheEnvelope<unknown>(kind, playlistId)?.savedAt)
-    .filter((value): value is number => value !== undefined);
-
-  return timestamps.length > 0 ? Math.max(...timestamps) : null;
+export const getPlaylistReportSavedAt = (
+  playlistId: string
+): number | null => {
+  return readCacheEnvelope<unknown>("report", playlistId)?.savedAt ?? null;
 };
