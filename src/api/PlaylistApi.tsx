@@ -1,6 +1,11 @@
 import { useSuspenseQuery, type QueryClient } from "@tanstack/react-query";
 import { LoaderFunction, LoaderFunctionArgs } from "react-router";
 import { isPlaylistId } from "@/lib/playlist-id";
+import {
+  clearPlaylistCache,
+  readPlaylistCache,
+  writePlaylistCache,
+} from "@/lib/playlist-cache";
 export { parseDuration, formatDuration } from "@/lib/duration";
 
 // Interfaces
@@ -92,75 +97,6 @@ type PlaylistReportData = {
   avgDuration: string;
 };
 
-type CachedPlaylistReport = {
-  schemaVersion: 1;
-  savedAt: number;
-  data: PlaylistReportData;
-};
-
-// Constants
-const PLAYLIST_REPORT_CACHE_SCHEMA_VERSION = 1;
-const PLAYLIST_REPORT_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
-const PLAYLIST_REPORT_CACHE_PREFIX = "ytpr:playlist-report:";
-
-const getPlaylistReportCacheKey = (playlistId: string) =>
-  `${PLAYLIST_REPORT_CACHE_PREFIX}${playlistId}`;
-
-const readCachedPlaylistReport = (
-  playlistId: string
-): PlaylistReportData | null => {
-  try {
-    if (typeof window === "undefined") {
-      return null;
-    }
-
-    const cachedValue = window.localStorage.getItem(
-      getPlaylistReportCacheKey(playlistId)
-    );
-
-    if (!cachedValue) {
-      return null;
-    }
-
-    const cachedReport = JSON.parse(cachedValue) as CachedPlaylistReport;
-
-    if (
-      cachedReport.schemaVersion !== PLAYLIST_REPORT_CACHE_SCHEMA_VERSION ||
-      Date.now() - cachedReport.savedAt >= PLAYLIST_REPORT_CACHE_TTL_MS
-    ) {
-      return null;
-    }
-
-    return cachedReport.data;
-  } catch {
-    return null;
-  }
-};
-
-const writeCachedPlaylistReport = (
-  playlistId: string,
-  data: PlaylistReportData
-) => {
-  try {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const cachedReport: CachedPlaylistReport = {
-      schemaVersion: PLAYLIST_REPORT_CACHE_SCHEMA_VERSION,
-      savedAt: Date.now(),
-      data,
-    };
-
-    window.localStorage.setItem(
-      getPlaylistReportCacheKey(playlistId),
-      JSON.stringify(cachedReport)
-    );
-  } catch {
-    // Cache failures should never block report generation.
-  }
-};
-
 // API functions
 const PUBLIC_API_ERRORS = new Set([
   "forbidden",
@@ -197,7 +133,10 @@ const requestPlaylistResource = async <T,>(
 const calculatePlaylistDetails = async (
   playlistId: string
 ): Promise<PlaylistReportData> => {
-  const cachedReport = readCachedPlaylistReport(playlistId);
+  const cachedReport = readPlaylistCache<PlaylistReportData>(
+    "report",
+    playlistId
+  );
 
   if (cachedReport) {
     return cachedReport;
@@ -208,14 +147,38 @@ const calculatePlaylistDetails = async (
     "report"
   );
 
-  writeCachedPlaylistReport(playlistId, playlistReport);
+  writePlaylistCache("report", playlistId, playlistReport);
 
   return playlistReport;
+};
+
+const calculatePlaylistInfo = async (
+  playlistId: string
+): Promise<PlaylistDetails> => {
+  const cachedDetails = readPlaylistCache<PlaylistDetails>(
+    "details",
+    playlistId
+  );
+
+  if (cachedDetails) {
+    return cachedDetails;
+  }
+
+  const details = await fetchPlaylistDetails(playlistId);
+  writePlaylistCache("details", playlistId, details);
+
+  return details;
 };
 
 export const createPlaylistDetailsQuery = (id: string) => ({
   queryKey: ["playlist", id],
   queryFn: () => calculatePlaylistDetails(id),
+  staleTime: 1000 * 60 * 5,
+});
+
+export const createPlaylistInfoQuery = (id: string) => ({
+  queryKey: ["playlistDetails", id],
+  queryFn: () => calculatePlaylistInfo(id),
   staleTime: 1000 * 60 * 5,
 });
 
@@ -225,6 +188,15 @@ export const fetchPlaylistDetails = async (
   return requestPlaylistResource<PlaylistDetails>(playlistId, "details");
 };
 
+export const refreshPlaylist = (
+  queryClient: QueryClient,
+  playlistId: string
+): void => {
+  clearPlaylistCache(playlistId);
+  queryClient.removeQueries({ queryKey: ["playlist", playlistId] });
+  queryClient.removeQueries({ queryKey: ["playlistDetails", playlistId] });
+};
+
 export const loadPlaylist = (queryClient: QueryClient): LoaderFunction => {
   return async ({ params }: LoaderFunctionArgs) => {
     if (!isPlaylistId(params.playlistId)) {
@@ -232,10 +204,9 @@ export const loadPlaylist = (queryClient: QueryClient): LoaderFunction => {
     }
 
     try {
-      const playlistDetails = await queryClient.ensureQueryData({
-        queryKey: ["playlistDetails", params.playlistId],
-        queryFn: () => fetchPlaylistDetails(params.playlistId as string),
-      });
+      const playlistDetails = await queryClient.ensureQueryData(
+        createPlaylistInfoQuery(params.playlistId)
+      );
 
       const playlistDetailsPromise = queryClient.ensureQueryData(
         createPlaylistDetailsQuery(params.playlistId)

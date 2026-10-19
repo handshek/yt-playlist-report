@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect, useState } from "react";
-import { usePlaylistDuration } from "@/api/PlaylistApi";
+import { useIsFetching } from "@tanstack/react-query";
+import { usePlaylistDuration, refreshPlaylist } from "@/api/PlaylistApi";
 import {
   useParams,
   useLoaderData,
@@ -26,12 +27,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Zap, History, Clock, Film, ExternalLink } from "lucide-react";
+import { Zap, History, Clock, Film, ExternalLink, RefreshCw } from "lucide-react";
 import Footer from "@/components/Footer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logoIcon } from "@/assets";
 import QRCode from "react-qr-code";
 import { queryClient } from "@/lib/query-client";
+import { getPlaylistReportSavedAt } from "@/lib/playlist-cache";
 import { loader as playlistLoader } from "@/api/PlaylistApi";
 import { pageMeta } from "@/lib/site";
 import type { ReportOutletContext } from "@/lib/report-context";
@@ -164,7 +166,13 @@ const PlaylistDuration: React.FC = () => {
   );
 };
 
-const PlaylistInfo: React.FC<{ details: PlaylistDetails }> = ({ details }) => {
+const PlaylistInfo: React.FC<{
+  details: PlaylistDetails;
+  updatedAt: number | null;
+  onRefresh: () => void;
+  refreshing: boolean;
+  disabled: boolean;
+}> = ({ details, updatedAt, onRefresh, refreshing, disabled }) => {
   return (
     <div className="w-full flex flex-col justify-between items-start md:flex-row lg:items-end gap-5">
       <div className="flex flex-col gap-1 pl-2 border-l-4 border-red-600 order-2 md:order-1">
@@ -173,20 +181,38 @@ const PlaylistInfo: React.FC<{ details: PlaylistDetails }> = ({ details }) => {
         </p>
         <p>
           <span className="text-sm lg:text-lg">
-            {new Date().toLocaleString()}
+            Updated {new Date(updatedAt ?? Date.now()).toLocaleString()}
           </span>
         </p>
-        <p className="flex gap-1.5 items-center underline">
-          <a
-            href={`https://youtube.com/playlist?list=${details.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm lg:text-base"
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="flex gap-1.5 items-center underline">
+            <a
+              href={`https://youtube.com/playlist?list=${details.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm lg:text-base"
+            >
+              Visit Playlist
+            </a>
+            <ExternalLink className="w-3 h-3 lg:w-4 lg:h-4" />
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={disabled}
+            aria-label="Refresh playlist report"
+            title="Reports stay cached for 24 hours. Refresh to fetch the latest data now."
           >
-            Visit Playlist
-          </a>
-          <ExternalLink className="w-3 h-3 lg:w-4 lg:h-4" />
-        </p>
+            <RefreshCw
+              className={`mr-1.5 h-3.5 w-3.5 ${
+                refreshing ? "animate-spin" : ""
+              }`}
+            />
+            {refreshing ? "Refreshing" : "Refresh"}
+          </Button>
+        </div>
       </div>
       <div className="lg:self-center order-1 md:order-1">
         <a href="/" className="">
@@ -292,16 +318,39 @@ export function ErrorBoundary() {
 
 const Report: React.FC = () => {
   const { playlistDetails, videoDetails } = useLoaderData() as LoaderData;
+  const revalidator = useRevalidator();
+  const [refreshRequested, setRefreshRequested] = useState(false);
+  const reportFetching =
+    useIsFetching({ queryKey: ["playlist", playlistDetails?.id] }) > 0;
+  const busy = revalidator.state !== "idle" || reportFetching;
+
+  useEffect(() => {
+    if (refreshRequested && !busy) {
+      setRefreshRequested(false);
+    }
+  }, [refreshRequested, busy]);
 
   if (!playlistDetails) {
     return <ReportLoadError error={new Error("playlist_unavailable")} />;
   }
 
+  const handleRefresh = () => {
+    refreshPlaylist(queryClient, playlistDetails.id);
+    setRefreshRequested(true);
+    void revalidator.revalidate();
+  };
+
   return (
     <>
       <div className="xl:px-28 min-h-dvh py-6">
         <div className="container mx-auto mt-8 rounded-lg">
-          <PlaylistInfo details={playlistDetails} />
+          <PlaylistInfo
+            details={playlistDetails}
+            updatedAt={getPlaylistReportSavedAt(playlistDetails.id)}
+            onRefresh={handleRefresh}
+            refreshing={refreshRequested}
+            disabled={busy || refreshRequested}
+          />
           <Suspense fallback={<ReportSkeleton />}>
             <Await
               resolve={videoDetails}

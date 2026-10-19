@@ -15,6 +15,38 @@ test("generates a report, adjusts playback speed and reuses the report on reload
   expect(api.requests.filter((request) => request.resource === "report")).toHaveLength(1);
 });
 
+test("refreshes a cached report on demand", async ({ page, api }) => {
+  await generateReport(page);
+  await expectSummary(page, "10m", "2m 30s", "4");
+  expect(api.requests.filter((request) => request.resource === "details")).toHaveLength(1);
+  expect(api.requests.filter((request) => request.resource === "report")).toHaveLength(1);
+  await page.reload();
+  await expectSummary(page, "10m", "2m 30s", "4");
+  expect(api.requests.filter((request) => request.resource === "details")).toHaveLength(1);
+  expect(api.requests.filter((request) => request.resource === "report")).toHaveLength(1);
+
+  api.reportVideos[0].contentDetails.duration = "PT5M";
+  await page.getByRole("button", { name: "Refresh playlist report" }).click();
+  await expectSummary(page, "14m", "3m 30s", "4");
+  expect(api.requests.filter((request) => request.resource === "details")).toHaveLength(2);
+  expect(api.requests.filter((request) => request.resource === "report")).toHaveLength(2);
+});
+
+test("keeps Refresh disabled until the refreshed report finishes", async ({ page, api }) => {
+  await generateReport(page);
+  await expectSummary(page, "10m", "2m 30s", "4");
+  let releaseReport!: () => void;
+  api.holdReport = new Promise<void>((resolve) => { releaseReport = resolve; });
+  try {
+    await page.getByRole("button", { name: "Refresh playlist report" }).click();
+    await expect(page.getByRole("button", { name: "Refresh playlist report" })).toBeDisabled();
+  } finally {
+    releaseReport();
+  }
+  await expect(page.getByRole("button", { name: "Refresh playlist report" })).toBeEnabled();
+  await expectSummary(page, "10m", "2m 30s", "4");
+});
+
 test("commits the first keyboard range change and keeps the selected positions", async ({ page }) => {
   await generateReport(page);
   await expectSummary(page, "10m", "2m 30s", "4");
