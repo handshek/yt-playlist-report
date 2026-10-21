@@ -1,7 +1,10 @@
 import { useSuspenseQuery, type QueryClient } from "@tanstack/react-query";
 import { LoaderFunction, LoaderFunctionArgs } from "react-router";
 import { isPlaylistId } from "@/lib/playlist-id";
-export { parseDuration, formatDuration } from "@/lib/duration";
+import {
+  PlaylistRequestError,
+  isReportErrorReason,
+} from "@/lib/report-errors";
 
 // Interfaces
 export interface PlaylistResponse {
@@ -86,16 +89,14 @@ export interface PlaylistDetails {
   thumbnails: Thumbnails;
 }
 
-type PlaylistReportData = {
+export type PlaylistReport = {
   videos: VideoItem[];
-  duration: string;
-  avgDuration: string;
 };
 
 type CachedPlaylistReport = {
   schemaVersion: 1;
   savedAt: number;
-  data: PlaylistReportData;
+  data: PlaylistReport;
 };
 
 // Constants
@@ -108,7 +109,7 @@ const getPlaylistReportCacheKey = (playlistId: string) =>
 
 const readCachedPlaylistReport = (
   playlistId: string
-): PlaylistReportData | null => {
+): PlaylistReport | null => {
   try {
     if (typeof window === "undefined") {
       return null;
@@ -139,7 +140,7 @@ const readCachedPlaylistReport = (
 
 const writeCachedPlaylistReport = (
   playlistId: string,
-  data: PlaylistReportData
+  data: PlaylistReport
 ) => {
   try {
     if (typeof window === "undefined") {
@@ -162,15 +163,6 @@ const writeCachedPlaylistReport = (
 };
 
 // API functions
-const PUBLIC_API_ERRORS = new Set([
-  "forbidden",
-  "invalid_request",
-  "method_not_allowed",
-  "playlist_unavailable",
-  "service_unavailable",
-  "upstream_unavailable",
-]);
-
 const requestPlaylistResource = async <T,>(
   playlistId: string,
   resource: "details" | "report"
@@ -184,26 +176,26 @@ const requestPlaylistResource = async <T,>(
   const payload = (await response.json()) as { error?: unknown } & T;
 
   if (!response.ok) {
-    const error =
-      typeof payload.error === "string" && PUBLIC_API_ERRORS.has(payload.error)
+    throw new PlaylistRequestError(
+      isReportErrorReason(payload.error)
         ? payload.error
-        : "service_unavailable";
-    throw new Error(error);
+        : "service_unavailable"
+    );
   }
 
   return payload;
 };
 
-const calculatePlaylistDetails = async (
+const loadPlaylistReport = async (
   playlistId: string
-): Promise<PlaylistReportData> => {
+): Promise<PlaylistReport> => {
   const cachedReport = readCachedPlaylistReport(playlistId);
 
   if (cachedReport) {
     return cachedReport;
   }
 
-  const playlistReport = await requestPlaylistResource<PlaylistReportData>(
+  const playlistReport = await requestPlaylistResource<PlaylistReport>(
     playlistId,
     "report"
   );
@@ -213,9 +205,9 @@ const calculatePlaylistDetails = async (
   return playlistReport;
 };
 
-export const createPlaylistDetailsQuery = (id: string) => ({
-  queryKey: ["playlist", id],
-  queryFn: () => calculatePlaylistDetails(id),
+export const createPlaylistReportQuery = (id: string) => ({
+  queryKey: ["playlistReport", id],
+  queryFn: () => loadPlaylistReport(id),
   staleTime: 1000 * 60 * 5,
 });
 
@@ -228,7 +220,7 @@ export const fetchPlaylistDetails = async (
 export const loadPlaylist = (queryClient: QueryClient): LoaderFunction => {
   return async ({ params }: LoaderFunctionArgs) => {
     if (!isPlaylistId(params.playlistId)) {
-      throw new Error("invalid_request");
+      throw new PlaylistRequestError("invalid_request");
     }
 
     try {
@@ -238,7 +230,7 @@ export const loadPlaylist = (queryClient: QueryClient): LoaderFunction => {
       });
 
       const playlistDetailsPromise = queryClient.ensureQueryData(
-        createPlaylistDetailsQuery(params.playlistId)
+        createPlaylistReportQuery(params.playlistId)
       );
 
       return {
@@ -256,6 +248,6 @@ export const loader = (queryClient: QueryClient): LoaderFunction => {
   return (args: LoaderFunctionArgs) => loadPlaylist(queryClient)(args);
 };
 
-export const usePlaylistDuration = (playlistId: string) => {
-  return useSuspenseQuery(createPlaylistDetailsQuery(playlistId));
+export const usePlaylistReport = (playlistId: string) => {
+  return useSuspenseQuery(createPlaylistReportQuery(playlistId));
 };

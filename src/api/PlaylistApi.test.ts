@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  createPlaylistDetailsQuery,
+  createPlaylistReportQuery,
   fetchPlaylistDetails,
 } from "./PlaylistApi";
 
@@ -38,16 +38,12 @@ describe("playlist API client", () => {
 
   it("requests report data without putting a playlist ID in the URL", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ videos: [], duration: "", avgDuration: "" })
-      )
+      new Response(JSON.stringify({ videos: [] }))
     );
 
-    const query = createPlaylistDetailsQuery("PLabc_12345");
+    const query = createPlaylistReportQuery("PLabc_12345");
     await expect(query.queryFn()).resolves.toEqual({
       videos: [],
-      duration: "",
-      avgDuration: "",
     });
     expect(fetchMock).toHaveBeenCalledWith("/api/youtube-playlist", {
       method: "POST",

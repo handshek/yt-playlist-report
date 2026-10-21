@@ -8,6 +8,7 @@ import { Loader, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { trackSeoEvent } from "@/lib/seo-events";
 import { isPlaylistId } from "@/lib/playlist-id";
+import { getReportErrorReason } from "@/lib/report-errors";
 
 const YOUTUBE_HOSTS = new Set([
   "youtube.com",
@@ -34,9 +35,10 @@ const Form = () => {
       navigate(`/playlist/${data.id}`);
     },
     onError: (error) => {
+      const reason = getReportErrorReason(error);
       trackSeoEvent({ name: "report_error", reason: "fetch_failed" });
       toast.error("Error generating report", {
-        description: error.message === "playlist_unavailable"
+        description: reason === "playlist_unavailable"
           ? "Make sure the playlist exists and is public"
           : "The playlist could not be loaded. Please try again.",
         richColors: true,

@@ -1,5 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { formatDuration, parseDuration, VideoItem } from "@/api/PlaylistApi";
+import type { VideoItem } from "@/api/PlaylistApi";
+import { formatDuration, parseDuration } from "@/lib/duration";
 import { DataTableColumnHeader } from "./data-table-column-header";
 
 const formatDate = (timeStr: string): string => {
