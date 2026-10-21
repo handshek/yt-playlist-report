@@ -2,7 +2,9 @@ import { test as base, expect, type Page } from "@playwright/test";
 import type { VideoItem } from "../src/api/PlaylistApi";
 
 export const playlistId = "PLfixture12345";
+export const shortPlaylistId = "PLfixtureShort1";
 export const playlistUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
+export const shortPlaylistUrl = `https://www.youtube.com/playlist?list=${shortPlaylistId}`;
 
 export const videos: VideoItem[] = [1, 2, 3, 4].map((minutes) => ({
   kind: "youtube#video",
@@ -40,6 +42,7 @@ export type PlaylistApi = {
   detailsError: string | null;
   reportError: string | null;
   reportVideos: VideoItem[];
+  shortReportVideos: VideoItem[];
   holdReport: Promise<void> | null;
 };
 
@@ -50,15 +53,19 @@ export const test = base.extend<{ api: PlaylistApi }>({
       detailsError: null,
       reportError: null,
       reportVideos: structuredClone(videos),
+      shortReportVideos: structuredClone(videos.slice(0, 2)),
       holdReport: null,
     };
+    await page.addInitScript(() => {
+      window.localStorage.setItem("ytpr.supportPrompt.suppressed.v1", "true");
+    });
     await page.route("**/api/github-stars", (route) =>
       route.fulfill({ json: { count: 0 } })
     );
     await page.route("**/api/youtube-playlist", async (route) => {
       expect(route.request().method()).toBe("POST");
       const request = route.request().postDataJSON() as ApiRequest;
-      expect(request.playlistId).toBe(playlistId);
+      expect([playlistId, shortPlaylistId]).toContain(request.playlistId);
       expect(["details", "report"]).toContain(request.resource);
       api.requests.push(request);
       if (request.resource === "report") await api.holdReport;
@@ -70,10 +77,18 @@ export const test = base.extend<{ api: PlaylistApi }>({
         });
         return;
       }
+      const isShort = request.playlistId === shortPlaylistId;
       await route.fulfill({
         json: request.resource === "details"
-          ? { id: request.playlistId, title: "Fixture playlist", description: "", thumbnails: {} }
-          : { videos: api.reportVideos, duration: "10m", avgDuration: "2m 30s" },
+          ? {
+              id: request.playlistId,
+              title: isShort ? "Short fixture playlist" : "Fixture playlist",
+              description: "",
+              thumbnails: {},
+            }
+          : {
+              videos: isShort ? api.shortReportVideos : api.reportVideos,
+            },
       });
     });
     await use(api);

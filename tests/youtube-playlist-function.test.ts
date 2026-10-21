@@ -183,10 +183,10 @@ describe("YouTube playlist API", () => {
 
     expect(response.statusCode).toBe(200);
     expect(jsonBody(response)).toMatchObject({
-      duration: "4m",
-      avgDuration: "2m",
       videos: [{ id: "video-one" }, { id: "video-two" }],
     });
+    expect(jsonBody(response)).not.toHaveProperty("duration");
+    expect(jsonBody(response)).not.toHaveProperty("avgDuration");
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(String(fetchMock.mock.calls[0][0])).not.toContain(
       "server-only-test-key"
