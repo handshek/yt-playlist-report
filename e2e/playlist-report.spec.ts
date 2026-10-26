@@ -1,4 +1,12 @@
-import { test, expect, playlistId, playlistUrl, generateReport, expectSummary } from "./fixtures";
+import {
+  test,
+  expect,
+  playlistId,
+  playlistUrl,
+  shortPlaylistId,
+  generateReport,
+  expectSummary,
+} from "./fixtures";
 
 test("generates a report, adjusts playback speed and reuses the report on reload", async ({ page, api }, testInfo) => {
   await generateReport(page);
@@ -32,6 +40,32 @@ test("commits the first keyboard range change and keeps the selected positions",
   await page.getByRole("button", { name: "Select Range" }).click();
   await expect(page.getByRole("slider").first()).toHaveAttribute("aria-valuenow", "2");
   await expect(page.getByRole("slider").last()).toHaveAttribute("aria-valuenow", "4");
+});
+
+test("resets the video range when the playlist changes", async ({ page }) => {
+  await generateReport(page);
+  await expectSummary(page, "10m", "2m 30s", "4");
+  await page.getByRole("button", { name: "Select Range" }).click();
+  await page.getByRole("slider").first().focus();
+  await page.getByRole("slider").first().press("ArrowRight");
+  await page.keyboard.press("Escape");
+  await expectSummary(page, "9m", "3m", "3");
+
+  await page.evaluate((id) => {
+    window.history.pushState({}, "", `/playlist/${id}`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, shortPlaylistId);
+
+  await expectSummary(page, "3m", "1m 30s", "2");
+  await page.getByRole("button", { name: "Select Range" }).click();
+  await expect(page.getByRole("slider").first()).toHaveAttribute(
+    "aria-valuenow",
+    "1"
+  );
+  await expect(page.getByRole("slider").last()).toHaveAttribute(
+    "aria-valuenow",
+    "2"
+  );
 });
 
 test("allows selecting exactly one video", async ({ page }) => {

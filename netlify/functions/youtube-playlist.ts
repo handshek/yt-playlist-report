@@ -8,7 +8,6 @@ import {
   type FunctionRequest,
   type FunctionResponse,
 } from "./shared/http";
-import { parseDuration, formatDuration } from "../../src/lib/duration";
 import { isPlaylistId } from "../../src/lib/playlist-id";
 
 const YOUTUBE_API_BASE_URL = "https://www.googleapis.com/youtube/v3";
@@ -230,18 +229,8 @@ const fetchVideoDetails = async (videoIds: string[], apiKey: string) => {
 const fetchPlaylistReport = async (playlistId: string, apiKey: string) => {
   const videoIds = await fetchPlaylistVideoIds(playlistId, apiKey);
   const videos = await fetchVideoDetails(videoIds, apiKey);
-  const totalDuration = videos.reduce(
-    (total, video) => total + parseDuration(video.contentDetails.duration),
-    0
-  );
 
-  return {
-    videos,
-    duration: formatDuration(totalDuration),
-    avgDuration: videos.length
-      ? formatDuration(Math.round(totalDuration / videos.length))
-      : "",
-  };
+  return { videos };
 };
 
 export async function handleYoutubePlaylistRequest(

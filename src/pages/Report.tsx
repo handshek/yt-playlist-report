@@ -1,5 +1,9 @@
 import React, { Suspense, useEffect, useState } from "react";
-import { usePlaylistDuration } from "@/api/PlaylistApi";
+import {
+  type PlaylistDetails,
+  type PlaylistReport,
+  usePlaylistReport,
+} from "@/api/PlaylistApi";
 import {
   useParams,
   useLoaderData,
@@ -11,12 +15,18 @@ import {
   useRouteError,
   type MetaFunction,
 } from "react-router";
+import { formatDuration } from "@/lib/duration";
 import {
-  PlaylistDetails,
-  VideoItem,
-  formatDuration,
-  parseDuration,
-} from "@/api/PlaylistApi";
+  PlaylistRequestError,
+  getReportErrorReason,
+} from "@/lib/report-errors";
+import {
+  DEFAULT_PLAYBACK_SPEED,
+  PLAYBACK_SPEED_OPTIONS,
+  summarizePlaylist,
+  type PlaybackSpeed,
+  type PlaylistRange,
+} from "@/lib/playlist-report";
 import VideoTable from "@/components/VideosTable";
 import createColumns from "@/components/ui/columns";
 import {
@@ -52,22 +62,17 @@ export const meta: MetaFunction = ({ params }) =>
 
 export const clientLoader = playlistLoader(queryClient);
 
-const PLAYBACK_SPEED_VALUES = [
-  "0.25",
-  "0.5",
-  "0.75",
-  "1.0",
-  "1.25",
-  "1.5",
-  "2.0",
-];
-
 const PlaylistDuration: React.FC = () => {
   const { playlistId } = useParams<{ playlistId: string }>();
   const { markReportReady } = useOutletContext<ReportOutletContext>();
-  const { data } = usePlaylistDuration(playlistId!);
-  const [values, setValues] = useState<number[]>([1, data?.videos.length || 1]);
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+  const { data } = usePlaylistReport(playlistId!);
+  const [range, setRange] = useState<PlaylistRange>(() => ({
+    start: 1,
+    end: Math.max(1, data?.videos.length ?? 0),
+  }));
+  const [playbackSpeed, setPlaybackSpeed] = useState<PlaybackSpeed>(
+    DEFAULT_PLAYBACK_SPEED
+  );
 
   useEffect(() => {
     if (data?.videos) {
@@ -79,21 +84,16 @@ const PlaylistDuration: React.FC = () => {
     return <div>No video details available</div>;
   }
 
-  const selectedVideos = data.videos.slice(values[0] - 1, values[1]);
-  const totalDuration = selectedVideos.reduce(
-    (acc, video) => acc + parseDuration(video.contentDetails.duration),
-    0
-  );
-  const speedAdjustedDuration = Math.round(totalDuration / playbackSpeed);
-  const avgDuration = selectedVideos.length
-    ? Math.floor(speedAdjustedDuration / selectedVideos.length)
-    : 0;
+  const summary = summarizePlaylist(data.videos, { range, speed: playbackSpeed });
 
   const handleSpeedChange = (value: string) => {
-    setPlaybackSpeed(parseFloat(value));
+    const option = PLAYBACK_SPEED_OPTIONS.find(
+      ({ value: speed }) => String(speed) === value
+    );
+    if (option) setPlaybackSpeed(option.value);
   };
 
-  const columns = createColumns(playlistId!, values[0]);
+  const columns = createColumns(playlistId!, summary.range.start);
 
   return (
     <>
@@ -111,20 +111,28 @@ const PlaylistDuration: React.FC = () => {
                 <span className="flex items-center text-sm xl:text-base">
                   <Zap className="w-3 h-3 xl:w-4 xl:h-4 mr-1" /> Speed:
                 </span>
-                <Select onValueChange={handleSpeedChange} defaultValue="1.0">
+                <Select
+                  value={String(playbackSpeed)}
+                  onValueChange={handleSpeedChange}
+                >
                   <SelectTrigger aria-label="Playback speed" className="w-fit min-w-[60px] py-0.5 px-1.5 h-fit bg-transparent text-sm lg:text-base bg-gray-200 hover:bg-gray-300 ">
                     <SelectValue placeholder="Select speed" />
                   </SelectTrigger>
                   <SelectContent align="end">
-                    {PLAYBACK_SPEED_VALUES.map((value) => (
-                      <SelectItem key={value} value={value}>{`${value}`}</SelectItem>
+                    {PLAYBACK_SPEED_OPTIONS.map((option) => (
+                      <SelectItem
+                        key={option.value}
+                        value={String(option.value)}
+                      >
+                        {option.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <p className="text-3xl xl:text-4xl pt-4 xl:pt-6">
-              {formatDuration(speedAdjustedDuration)}
+              {formatDuration(summary.totalSeconds)}
             </p>
           </div>
           <div className="bg-neutral-50 border p-4 rounded-xl flex flex-col justify-between">
@@ -135,7 +143,7 @@ const PlaylistDuration: React.FC = () => {
               </h2>
             </div>
             <p className="text-3xl xl:text-4xl pt-4 xl:pt-6">
-              {formatDuration(avgDuration)}
+              {formatDuration(summary.averageSeconds)}
             </p>
           </div>
           <div className="bg-neutral-50 border p-4 rounded-xl flex flex-col justify-between">
@@ -146,16 +154,18 @@ const PlaylistDuration: React.FC = () => {
               </h2>
             </div>
             <p className="text-3xl xl:text-4xl pt-4 xl:pt-6">
-              {selectedVideos.length}
+              {summary.videoCount}
             </p>
           </div>
         </div>
         <div className="space-y-2">
           <VideoTable
             columns={columns}
-            data={selectedVideos}
-            onRangeChange={setValues}
-            rangeValue={values}
+            data={summary.selectedVideos}
+            onRangeChange={(value) =>
+              setRange({ start: value[0], end: value[1] })
+            }
+            rangeValue={[summary.range.start, summary.range.end]}
             totalVideos={data.videos.length}
           />
         </div>
@@ -217,11 +227,7 @@ const PlaylistInfo: React.FC<{ details: PlaylistDetails }> = ({ details }) => {
 
 interface LoaderData {
   playlistDetails: PlaylistDetails;
-  videoDetails: Promise<{
-    videos: VideoItem[];
-    duration: string;
-    avgDuration: string;
-  }>;
+  videoDetails: Promise<PlaylistReport>;
 }
 
 const ReportSkeleton: React.FC = () => {
@@ -241,7 +247,7 @@ const ReportSkeleton: React.FC = () => {
 
 function ReportLoadError({ error }: { error: unknown }) {
   const revalidator = useRevalidator();
-  const reason = error instanceof Error ? error.message : "";
+  const reason = getReportErrorReason(error);
   const invalid = reason === "invalid_request";
   const unavailable = reason === "playlist_unavailable";
 
@@ -294,7 +300,11 @@ const Report: React.FC = () => {
   const { playlistDetails, videoDetails } = useLoaderData() as LoaderData;
 
   if (!playlistDetails) {
-    return <ReportLoadError error={new Error("playlist_unavailable")} />;
+    return (
+      <ReportLoadError
+        error={new PlaylistRequestError("playlist_unavailable")}
+      />
+    );
   }
 
   return (
@@ -308,7 +318,7 @@ const Report: React.FC = () => {
               errorElement={<ReportDataError />}
             >
               <>
-                <PlaylistDuration />
+                <PlaylistDuration key={playlistDetails.id} />
                 <ReportFeedback />
               </>
             </Await>
